@@ -48,6 +48,18 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
 
 
 
+def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+    obj_guess, closest_map = None, None
+
+    try:
+
+        kbc,epoch,loss = kbc_model_load(kbc_path)
+        #Todo (Add newer Version)
+
+    except Exception as e:
+        print(e)
+        return None
+
 if __name__ == "__main__":
 
     big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']

@@ -187,7 +187,7 @@ def dataset_to_query(model, dataset_name, dataset_mode):
 if __name__ == "__main__":
 
 	modes = ['train', 'load']
-	big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+	big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10', "Bio"]
 	datasets = big_datasets
 
 
@@ -234,7 +234,7 @@ if __name__ == "__main__":
 	)
 	parser.add_argument(
 		'--batch_size', default=1000, type=int,
-		help="Factorization rank."
+		help="Batch size."
 	)
 	parser.add_argument(
 		'--reg', default=0, type=float,
@@ -267,6 +267,9 @@ if __name__ == "__main__":
 	dataset = Dataset(args.dataset)
 	args.data_shape = dataset.get_shape()
 	examples = torch.from_numpy(dataset.get_train().astype('int64'))
+
+	print(len(examples))
+
 
 	model = {
 		'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),

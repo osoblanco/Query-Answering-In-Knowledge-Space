@@ -107,7 +107,7 @@ def prepare_dataset(path, name):
 
 
 if __name__ == "__main__":
-    datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+    datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10', "Bio"]
     for d in datasets:
         print("Preparing dataset {}".format(d))
         try:
@@ -123,4 +123,3 @@ if __name__ == "__main__":
                 print("File exists. skipping...")
             else:
                 raise
-

@@ -440,32 +440,32 @@ def load_chain_data(data_path):
 
 if __name__ == "__main__":
 
-        big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
-        datasets = big_datasets
+    big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+    datasets = big_datasets
 
-        parser = argparse.ArgumentParser(
-        description="Chain Dataset Sampling"
-        )
+    parser = argparse.ArgumentParser(
+    description="Chain Dataset Sampling"
+    )
 
 
-        parser.add_argument(
-        '--dataset', choices=datasets,
-        help="Dataset in {}".format(datasets)
-        )
+    parser.add_argument(
+    '--dataset', choices=datasets,
+    help="Dataset in {}".format(datasets)
+    )
 
-        parser.add_argument(
-        '--threshold',default = 1e5,
-        help="Threshold for maximum amount sampled per chain type"
-        )
+    parser.add_argument(
+    '--threshold',default = 1e5,
+    help="Threshold for maximum amount sampled per chain type"
+    )
 
-        parser.add_argument(
-        '--save_path',default = os.getcwd(),
-        help="Path to save the chained dataset"
-        )
+    parser.add_argument(
+    '--save_path',default = os.getcwd(),
+    help="Path to save the chained dataset"
+    )
 
-        args = parser.parse_args()
+    args = parser.parse_args()
 
-        chained_dataset_sampler = ChaineDataset( Dataset(args.dataset),args.threshold)
-        chained_dataset_sampler.sample_chains()
+    chained_dataset_sampler = ChaineDataset( Dataset(args.dataset),args.threshold)
+    chained_dataset_sampler.sample_chains()
 
-        save_chain_data(args.save_path,args.dataset,chained_dataset_sampler)
+    save_chain_data(args.save_path,args.dataset,chained_dataset_sampler)
