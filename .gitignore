@@ -6,3 +6,5 @@ kbc/lib/bindings.cpp
 dist
 kbc/data
 **/.nfs*
+./models/*
+./FB237
