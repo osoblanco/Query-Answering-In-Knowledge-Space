@@ -14,6 +14,7 @@ from kbc.models import KBCModel
 from kbc.regularizers import Regularizer
 
 
+
 class KBCOptimizer(object):
     def __init__(
             self, model: KBCModel, regularizer: Regularizer, optimizer: optim.Optimizer, batch_size: int = 256,
@@ -25,7 +26,8 @@ class KBCOptimizer(object):
         self.batch_size = batch_size
         self.verbose = verbose
 
-    def epoch(self, examples: torch.LongTensor):
+    def train_epoch(self, examples: torch.LongTensor):
+
         actual_examples = examples[torch.randperm(examples.shape[0]), :]
         loss = nn.CrossEntropyLoss(reduction='mean')
         with tqdm.tqdm(total=examples.shape[0], unit='ex', disable=not self.verbose) as bar:
@@ -46,6 +48,10 @@ class KBCOptimizer(object):
                 self.optimizer.zero_grad()
                 l.backward()
                 self.optimizer.step()
+
+                #get the Clipping here
+
                 b_begin += self.batch_size
+
                 bar.update(input_batch.shape[0])
                 bar.set_postfix(loss=f'{l.item():.0f}')

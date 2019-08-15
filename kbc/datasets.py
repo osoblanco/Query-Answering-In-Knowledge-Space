@@ -47,10 +47,8 @@ class Dataset(object):
         copy[:, 1] += self.n_predicates // 2  # has been multiplied by two.
         return np.vstack((self.data['train'], copy))
 
-    def eval(
-            self, model: KBCModel, split: str, n_queries: int = -1, missing_eval: str = 'both',
-            at: Tuple[int] = (1, 3, 10)
-    ):
+    def eval(self, model: KBCModel, split: str, n_queries: int = -1, missing_eval: str = 'both',at: Tuple[int] = (1, 3, 10)):
+
         test = self.get_examples(split)
         examples = torch.from_numpy(test.astype('int64')).cuda()
         missing = [missing_eval]
@@ -70,14 +68,35 @@ class Dataset(object):
                 q[:, 0] = q[:, 2]
                 q[:, 2] = tmp
                 q[:, 1] += self.n_predicates // 2
+
             ranks = model.get_ranking(q, self.to_skip[m], batch_size=500)
             mean_reciprocal_rank[m] = torch.mean(1. / ranks).item()
-            hits_at[m] = torch.FloatTensor((list(map(
-                lambda x: torch.mean((ranks <= x).float()).item(),
-                at
-            ))))
+            hits_at[m] = torch.FloatTensor((list(map(lambda x: torch.mean((ranks <= x).float()).item(),at))))
 
         return mean_reciprocal_rank, hits_at
 
     def get_shape(self):
         return self.n_entities, self.n_predicates, self.n_entities
+
+    def dataset_to_queries(self,split: str):
+        try:
+            test = self.get_examples(split)
+            examples = torch.from_numpy(test.astype('int64')).cuda()
+            missing = ['rhs']
+
+            for m in missing:
+                q = examples.clone()
+                if 'train' in split.lower():
+                    permutation = torch.randperm(len(examples))[:5000]
+                    q = examples[permutation]
+                # if m == 'lhs':
+                #     tmp = torch.clone(q[:, 0])
+                #     q[:, 0] = q[:, 2]
+                #     q[:, 2] = tmp
+                #     q[:, 1] += self.n_predicates // 2
+
+        except Exception as e:
+            print("Unable to segment queries from dataset with error {}".format(str(e)))
+            return None
+
+        return q

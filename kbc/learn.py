@@ -5,6 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import os
+import json
+import time
 import argparse
 from typing import Dict
 
@@ -17,129 +20,288 @@ from kbc.regularizers import N2, N3
 from kbc.optimizers import KBCOptimizer
 
 
-big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
-datasets = big_datasets
-
-parser = argparse.ArgumentParser(
-    description="Relational learning contraption"
-)
-
-parser.add_argument(
-    '--dataset', choices=datasets,
-    help="Dataset in {}".format(datasets)
-)
-
-models = ['CP', 'ComplEx']
-parser.add_argument(
-    '--model', choices=models,
-    help="Model in {}".format(models)
-)
-
-regularizers = ['N3', 'N2']
-parser.add_argument(
-    '--regularizer', choices=regularizers, default='N3',
-    help="Regularizer in {}".format(regularizers)
-)
-
-optimizers = ['Adagrad', 'Adam', 'SGD']
-parser.add_argument(
-    '--optimizer', choices=optimizers, default='Adagrad',
-    help="Optimizer in {}".format(optimizers)
-)
-
-parser.add_argument(
-    '--max_epochs', default=50, type=int,
-    help="Number of epochs."
-)
-parser.add_argument(
-    '--valid', default=3, type=float,
-    help="Number of epochs before valid."
-)
-parser.add_argument(
-    '--rank', default=1000, type=int,
-    help="Factorization rank."
-)
-parser.add_argument(
-    '--batch_size', default=1000, type=int,
-    help="Factorization rank."
-)
-parser.add_argument(
-    '--reg', default=0, type=float,
-    help="Regularization weight"
-)
-parser.add_argument(
-    '--init', default=1e-3, type=float,
-    help="Initial scale"
-)
-parser.add_argument(
-    '--learning_rate', default=1e-1, type=float,
-    help="Learning rate"
-)
-parser.add_argument(
-    '--decay1', default=0.9, type=float,
-    help="decay rate for the first moment estimate in Adam"
-)
-parser.add_argument(
-    '--decay2', default=0.999, type=float,
-    help="decay rate for second moment estimate in Adam"
-)
-args = parser.parse_args()
-
-dataset = Dataset(args.dataset)
-examples = torch.from_numpy(dataset.get_train().astype('int64'))
-
-print(dataset.get_shape())
-model = {
-    'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
-    'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-}[args.model]()
-
-regularizer = {
-    'N2': N2(args.reg),
-    'N3': N3(args.reg),
-}[args.regularizer]
-
-device = 'cuda'
-model.to(device)
-
-optim_method = {
-    'Adagrad': lambda: optim.Adagrad(model.parameters(), lr=args.learning_rate),
-    'Adam': lambda: optim.Adam(model.parameters(), lr=args.learning_rate, betas=(args.decay1, args.decay2)),
-    'SGD': lambda: optim.SGD(model.parameters(), lr=args.learning_rate)
-}[args.optimizer]()
-
-optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size)
-
-
 def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
-    """
-    aggregate metrics for missing lhs and rhs
-    :param mrrs: d
-    :param hits:
-    :return:
-    """
-    m = (mrrs['lhs'] + mrrs['rhs']) / 2.
-    h = (hits['lhs'] + hits['rhs']) / 2.
-    return {'MRR': m, 'hits@[1,3,10]': h}
+	"""
+	aggregate metrics for missing lhs and rhs
+	:param mrrs: d
+	:param hits:
+	:return:
+	"""
+	m = (mrrs['lhs'] + mrrs['rhs']) / 2.
+	h = (hits['lhs'] + hits['rhs']) / 2.
+	return {'MRR': m, 'hits@[1,3,10]': h}
 
 
-cur_loss = 0
-curve = {'train': [], 'valid': [], 'test': []}
-for e in range(args.max_epochs):
-    cur_loss = optimizer.epoch(examples)
 
-    if (e + 1) % args.valid == 0:
-        valid, test, train = [
-            avg_both(*dataset.eval(model, split, -1 if split != 'train' else 50000))
-            for split in ['valid', 'test', 'train']
-        ]
+def train_kbc(KBC_optimizer, dataset, args):
 
-        curve['valid'].append(valid)
-        curve['test'].append(test)
-        curve['train'].append(train)
+	try:
+		examples = torch.from_numpy(dataset.get_train().astype('int64'))
 
-        print("\t TRAIN: ", train)
-        print("\t VALID : ", valid)
+		max_epochs = args.max_epochs
+		model_save_schedule = args.model_save_schedule
 
-results = dataset.eval(model, 'test', -1)
-print("\n\nTEST : ", results)
+		cur_loss = 0
+		curve = {'train': [], 'valid': [], 'test': []}
+
+		timestamp = str(int(time.time()))
+		for epoch in range(1,max_epochs):
+
+			cur_loss = KBC_optimizer.train_epoch(examples)
+
+			if (epoch + 1) % args.valid == 0:
+				valid, test, train = [
+					avg_both(*dataset.eval(KBC_optimizer.model, split, -1 if split != 'train' else 50000))
+					for split in ['valid', 'test', 'train']
+				]
+
+			if epoch%model_save_schedule == 0 and epoch > 0:
+				if not os.path.isdir('models'):
+					os.mkdir('models')
+
+				model_dir = os.path.join(os.getcwd(),'models')
+				torch.save({'epoch': epoch,
+							'model_name':args.dataset,
+							'factorizer_name':args.model,
+							'regularizer':KBC_optimizer.regularizer,
+							'optim_method':KBC_optimizer.optimizer ,
+							'batch_size':KBC_optimizer.batch_size,
+	        				'model_state_dict': KBC_optimizer.model.state_dict(),
+				            'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
+	        				'loss': cur_loss},
+							 os.path.join(model_dir, '{}-model-epoch-{}-{}.pt'.format(args.dataset,epoch,timestamp)))
+
+				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
+  					json.dump(vars(args), json_file)
+
+				curve['valid'].append(valid)
+				curve['test'].append(test)
+				curve['train'].append(train)
+
+				print("\t TRAIN: ", train)
+				print("\t VALID : ", valid)
+
+		results = dataset.eval(model, 'test', -1)
+		print("\n\nTEST : ", results)
+
+	except RuntimeError as e:
+		print("Training was interupted with error {}".format(str(e)))
+
+	return curve, results
+
+def kbc_model_load(model_path):
+	'''
+	This function loads the KBC model given the model. It uses the
+	common identifiers in the name to identify the metadata/model files
+	and load from there.
+
+	@params:
+		model_path - full or relative path to the model_path
+	@returns:
+		model : Class(KBCOptimizer)
+		epoch : The epoch trained until (int)
+		loss  : The last loss stroed in the model
+	'''
+
+	try:
+
+		identifiers = model_path.split('/')[-1]
+		identifiers = identifiers.split('-')
+
+		dataset_name, timestamp = identifiers[0].strip(),identifiers[-1][:-3].strip()
+		model_dir = os.path.join(os.getcwd(),'models')
+
+		with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(dataset_name,timestamp)),'r') as json_file:
+			metadata = json.load(json_file)
+
+
+		checkpoint = torch.load(model_path)
+
+		factorizer_name  = checkpoint['factorizer_name']
+		model = None
+		if 'cp' in factorizer_name.lower():
+			model = CP(metadata['data_shape'], metadata['rank'], metadata['init'])
+
+		if 'complex' in factorizer_name.lower():
+			model = ComplEx(metadata['data_shape'], metadata['rank'], metadata['init'])
+		else:
+			print('Error in Model choices: Please choose CP or ComplEx')
+			return None, None, None
+
+		torch.cuda.empty_cache()
+		device = 'cuda'
+		model.to(device)
+
+		regularizer = checkpoint['regularizer']
+		optim_method = checkpoint['optim_method']
+		batch_size = checkpoint['batch_size']
+
+		KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, batch_size)
+
+		KBC_optimizer.model.load_state_dict(checkpoint['model_state_dict'])
+		KBC_optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+		epoch = checkpoint['epoch']
+		loss = checkpoint['loss']
+
+		print(KBC_optimizer.model.eval())
+
+
+	except RuntimeError as e:
+		print('Loading Failed with Error {}'.format(e))
+
+	return KBC_optimizer, epoch, loss
+
+
+def dataset_to_query(model, dataset_name, dataset_mode):
+	queries = None
+	try:
+		dataset = Dataset(dataset_name)
+
+
+		query_ids = dataset.dataset_to_queries(dataset_mode) # dataset_mode = [train,test,valid]
+
+		query_side = []
+
+		for i in range(len(query_ids[:,0])):
+			query_side.append((query_ids[:,0][i].item(),query_ids[:,1][i].item()))
+
+		check = []
+
+		for i,j in query_side:
+			check.append(dataset.to_skip['rhs'][i,j])
+
+		queries = model.get_queries_separated(query_ids)
+
+		if not('train' in dataset_mode.lower()):
+			results =  dataset.eval(model, dataset_mode, -1)
+			print("\n\n{} : {}".format(dataset_mode, results))
+
+
+	except RuntimeError as e:
+		print("Cannot convert the dataset to a query list with error: {}".format(str(e)))
+		return None, None
+
+	return queries,check
+
+if __name__ == "__main__":
+
+	modes = ['train', 'load']
+	big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+	datasets = big_datasets
+
+
+
+	parser = argparse.ArgumentParser(
+		description="Relational learning contraption"
+	)
+
+
+	parser.add_argument(
+		'--dataset', choices=datasets,
+		help="Dataset in {}".format(datasets)
+	)
+
+	models = ['CP', 'ComplEx']
+	parser.add_argument(
+		'--model', choices=models,
+		help="Model in {}".format(models)
+	)
+
+	regularizers = ['N3', 'N2']
+	parser.add_argument(
+		'--regularizer', choices=regularizers, default='N3',
+		help="Regularizer in {}".format(regularizers)
+	)
+
+	optimizers = ['Adagrad', 'Adam', 'SGD']
+	parser.add_argument(
+		'--optimizer', choices=optimizers, default='Adagrad',
+		help="Optimizer in {}".format(optimizers)
+	)
+
+	parser.add_argument(
+		'--max_epochs', default=50, type=int,
+		help="Number of epochs."
+	)
+	parser.add_argument(
+		'--valid', default=3, type=float,
+		help="Number of epochs before valid."
+	)
+	parser.add_argument(
+		'--rank', default=1000, type=int,
+		help="Factorization rank."
+	)
+	parser.add_argument(
+		'--batch_size', default=1000, type=int,
+		help="Factorization rank."
+	)
+	parser.add_argument(
+		'--reg', default=0, type=float,
+		help="Regularization weight"
+	)
+	parser.add_argument(
+		'--init', default=1e-3, type=float,
+		help="Initial scale"
+	)
+	parser.add_argument(
+		'--learning_rate', default=1e-1, type=float,
+		help="Learning rate"
+	)
+	parser.add_argument(
+		'--decay1', default=0.9, type=float,
+		help="decay rate for the first moment estimate in Adam"
+	)
+	parser.add_argument(
+		'--decay2', default=0.999, type=float,
+		help="decay rate for second moment estimate in Adam"
+	)
+
+	parser.add_argument(
+		'--model_save_schedule', default=50, type=int,
+		help="Saving the model every N iterations"
+	)
+
+	args = parser.parse_args()
+
+	dataset = Dataset(args.dataset)
+	args.data_shape = dataset.get_shape()
+	examples = torch.from_numpy(dataset.get_train().astype('int64'))
+
+	model = {
+		'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
+		'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
+	}[args.model]()
+
+	regularizer = {
+		'N2': N2(args.reg),
+		'N3': N3(args.reg),
+	}[args.regularizer]
+
+	device = 'cuda'
+	model.to(device)
+
+
+	print(vars(args))
+	optim_method = {
+		'Adagrad': lambda: optim.Adagrad(model.parameters(), lr=args.learning_rate),
+		'Adam': lambda: optim.Adam(model.parameters(), lr=args.learning_rate, betas=(args.decay1, args.decay2)),
+		'SGD': lambda: optim.SGD(model.parameters(), lr=args.learning_rate)
+	}[args.optimizer]()
+
+	KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size)
+
+	curve, results = train_kbc(KBC_optimizer,dataset,args)
+
+	print(curve, results)
+
+
+	# print(dataset_to_query(args.dataset))
+
+	# else:
+	# 	parser.add_argument(
+	# 		'--model_path',
+	# 		help="Model path"
+	# 	)
+	# 	optimizer,epoch, loss = kbc_model_load('models/WN-epoch-1.pt',model, regularizer, optim_method, args.batch_size)
+	# 	print(optimizer)
