@@ -1,4 +1,5 @@
 build
+models
 *.egg-info
 **/__pycache__
 **/*cpython*
