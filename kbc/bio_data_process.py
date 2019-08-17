@@ -1,30 +1,41 @@
 import pickle
+import random
 import os
 
+query_name_to_id_map = {}
 
-def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 5e5, test_threshold = 1e4, val_threshold = 3e3):
+train_ents = []
+test_ents = []
+val_ents = []
+
+def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 1e5, test_threshold = 5e4, val_threshold = 5e3):
     queries = None
     try:
+        global query_name_to_id_map,val_ents,test_ents,train_ents
+
         queries = [x[0][1] for x in queries_raw]
         queries = [(x[0], '_'.join(x[1]),x[2]) for x in queries]
 
         relation_names = [x[1] for x in queries]
         relation_names = list(set(relation_names))
-        query_name_to_id_map = {}
 
-        for i in range(len(relation_names)):
-            query_name_to_id_map[relation_names[i]] = i
+        if len(query_name_to_id_map) == 0:
+            for i in range(len(relation_names)):
+                query_name_to_id_map[relation_names[i]] = i
 
         queries = [[x[0], query_name_to_id_map[x[1]],x[2]] for x in queries]
+        random.shuffle(queries)
 
         if len(queries) > train_threshold and "train" in data_mode.lower():
             print("Unique relations in original train set", len(list(set([x[1] for x in queries]))))
             print("Unique entities in original train set", len(list(set([x[0] for x in queries] + [x[2] for x in queries]))))
 
-            queries = queries[:5*(10**5)]
+            queries = queries[:int(train_threshold)]
 
             print("Unique relations in downsampled train set", len(list(set([x[1] for x in queries]))))
-            print("Unique entities in downsampled train set", len(list(set([x[0] for x in queries] + [x[2] for x in queries]))))
+
+            train_ents = list(set([x[0] for x in queries] + [x[2] for x in queries]))
+            print("Unique entities in downsampled train set", len(train_ents))
 
             print("\n")
 
@@ -32,10 +43,21 @@ def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 5e5, test_threshold =
             print("Unique relations in original test set", len(list(set([x[1] for x in queries]))))
             print("Unique entities in original test set", len(list(set([x[0] for x in queries] + [x[2] for x in queries]))))
 
-            queries = queries[:(10**4)]
+            q = []
+            ind = 0
+            while len(q) <= test_threshold:
+                query = queries[ind]
+                if  query[0] in train_ents and query[2] in train_ents:
+                    q.append(query)
+                ind +=1
+
+            queries = q
+
+            # queries = queries[:int(test_threshold)]
 
             print("Unique relations in downsampled test set", len(list(set([x[1] for x in queries]))))
-            print("Unique entities in downsampled test set", len(list(set([x[0] for x in queries] + [x[2] for x in queries]))))
+            test_ents = list(set([x[0] for x in queries] + [x[2] for x in queries]))
+            print("Unique entities in downsampled test set", len(test_ents))
 
             print("\n")
 
@@ -44,10 +66,20 @@ def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 5e5, test_threshold =
             print("Unique relations in original val set", len(list(set([x[1] for x in queries]))))
             print("Unique entities in original val set", len(list(set([x[0] for x in queries] + [x[2] for x in queries]))))
 
-            queries = queries[:3*(10**3)]
+            q = []
+            ind = 0
+            while len(q) <= val_threshold:
+                query = queries[ind]
+                if  query[0] in train_ents and query[2] in train_ents:
+                    q.append(query)
+                ind +=1
+
+            queries = q
 
             print("Unique relations in downsampled val set", len(list(set([x[1] for x in queries]))))
-            print("Unique entities in downsampled val set", len(list(set([x[0] for x in queries] + [x[2] for x in queries]))))
+            val_ents = list(set([x[0] for x in queries] + [x[2] for x in queries]))
+
+            print("Unique entities in downsampled val set", len(val_ents))
 
             print("\n")
 
@@ -88,3 +120,8 @@ if __name__ == "__main__":
     write_queries("train",train_q)
     write_queries("test",test_q)
     write_queries("valid", val_q)
+
+
+    print(set(test_ents).issubset(train_ents))
+    print("____________")
+    print(set(val_ents).issubset(train_ents))
