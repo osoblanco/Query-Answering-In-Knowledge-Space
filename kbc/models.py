@@ -12,6 +12,7 @@ from torch import nn
 from torch import optim
 from kbc.regularizers import Regularizer
 import tqdm
+import gc
 
 class KBCModel(nn.Module, ABC):
     @abstractmethod
@@ -111,7 +112,7 @@ class KBCModel(nn.Module, ABC):
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
                 i =1
-                while i <= max_steps and (prev_loss - loss)>1e-20:
+                while i <= max_steps and (prev_loss - loss)>1e-30:
 
                     prev_loss = loss.clone()
 
@@ -130,13 +131,15 @@ class KBCModel(nn.Module, ABC):
                 if i != max_steps:
                     bar.update(max_steps-i +1)
 
-                    
+
                     print("\n\n Search converged early after {} iterations".format(i))
 
+
+                torch.cuda.empty_cache()
                 if 'cp' in self.model_type().lower():
-                    closest_map = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
+                    closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
                 elif 'complex' in self.model_type().lower():
-                    closest_map = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
+                    closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
                 else:
                     print("Choose model type from cp or complex please")
                     raise
@@ -146,7 +149,92 @@ class KBCModel(nn.Module, ABC):
             print("Cannot optimize the queries with error {}".format(str(e)))
             return None
 
-        return obj_guess, closest_map
+        return obj_guess, closest_map, indices_rankedby_distances
+
+    def type1_2chain_optimize(self, chain1: tuple, chain2: tuple, regularizer: Regularizer,candidates: int = 1,
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+        try:
+            try:
+                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+
+                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+                rhs_2 = chain2[2].clone().detach().requires_grad_(False).to(chain2[2].device)
+
+            except:
+                print("Cuda Memory not enough trying a hack")
+                lhs_1 = chain1[0]
+                rel_1 = chain1[1]
+
+                rel_2 = chain2[1]
+                rhs_2 = chain2[2]
+
+            obj_guess = torch.rand(rhs_2.shape, requires_grad=True, device=rhs_2.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
+            obj_guess = obj_guess.clone().detach().requires_grad_(True).to(rhs_2.device)
+
+
+            optimizer = optim.Adam([obj_guess], lr=0.1)
+
+            prev_loss =  torch.tensor([1000.], dtype = torch.float)
+            loss = torch.tensor([999.],dtype=torch.float)
+
+
+            with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+
+                i =1
+                while i <= max_steps and (prev_loss - loss)>1e-30:
+
+                    prev_loss = loss.clone()
+
+                    l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
+                    score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess) - l_reg_1)
+
+
+                    l_reg_2 = regularizer.forward((obj_guess, rel_2, rhs_2))
+                    score_2 = -(self.score_emb(obj_guess, rel_2, rhs_2) - l_reg_2)
+
+                    loss = torch.min(score_1,score_2)
+
+                    optimizer.zero_grad()
+
+                    loss.backward()
+                    optimizer.step()
+
+                    i+=1
+                    bar.update(1)
+                    bar.set_postfix(loss=f'{loss.item():.6f}')
+
+                if i != max_steps:
+                    bar.update(max_steps-i +1)
+
+
+                    print("\n\n Search converged early after {} iterations".format(i))
+
+
+                torch.cuda.empty_cache()
+                lhs_1 = None
+                rel_1 = None
+
+                rel_2 = None
+                rhs_2 = None
+
+                torch.cuda.empty_cache()
+                gc.collect()
+
+                if 'cp' in self.model_type().lower():
+                    closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
+                elif 'complex' in self.model_type().lower():
+                    closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
+                else:
+                    print("Choose model type from cp or complex please")
+                    raise
+
+        except RuntimeError as e:
+            print("Cannot optimize the queries with error {}".format(str(e)))
+            return None
+
+        return obj_guess, closest_map, indices_rankedby_distances
+
 
 
     def __expanded_pairwise_distances__(self,x, y=None):
@@ -180,34 +268,32 @@ class KBCModel(nn.Module, ABC):
         closest_matrix = []
 
         try:
-            obj_matrix_copy = obj_matrix.clone().detach().requires_grad_(False).cuda()
-            search_list_copy = search_list.clone().detach().requires_grad_(False).cuda()
-        except:
-            print("Cuda Memory not enough trying a hack")
-            obj_matrix_copy = obj_matrix
-            search_list_copy = search_list
-
-
-        try:
-            with tqdm.tqdm(total=obj_matrix_copy.shape[0], unit='iter', disable=False) as bar:
+            with tqdm.tqdm(total=obj_matrix.shape[0], unit='iter', disable=False) as bar:
 
 
                 if 'euclid' in similarity_metric.lower() or 'l2' in similarity_metric.lower():
 
 
                     if 'fast' in dist_comput_method.lower():
-                        dists = self.__expanded_pairwise_distances__(obj_matrix_copy,search_list_copy)
-                        min_inds = torch.argmin(dists,1)
-                        dist_mins = dists.gather(1, min_inds.view(-1,1)).reshape(-1)
 
+                        dists = self.__expanded_pairwise_distances__(obj_matrix,search_list)
+                        if dists is None:
+                            print("Trying CPU")
+                            dists = self.__expanded_pairwise_distances__(obj_matrix.clone().detach().requires_grad_(False).to("cpu"),search_list.to('cpu'))
+
+
+                        min_inds = torch.argmin(dists,1)
+
+                        indices_rankedby_distances = dists.clone().detach().requires_grad_(False).to("cpu").sort()[1]
+
+                        dist_mins = dists.gather(1, min_inds.view(-1,1)).reshape(-1)
                         closest_matrix = torch.stack([min_inds.float(), dist_mins],1)
 
-
-                        bar.update(len(obj_matrix_copy))
+                        bar.update(len(obj_matrix))
 
                     elif 'stable' in dist_comput_method.lower():
-                        for obj_vec in obj_matrix_copy:
-                            closest_vec = self.__closest_vector__(obj_vec,search_list_copy, similarity_metric)
+                        for obj_vec in obj_matrix:
+                            closest_vec = self.__closest_vector__(obj_vec,search_list, similarity_metric)
 
                             closest_matrix.append(closest_vec)
                             bar.update(1)
@@ -217,8 +303,11 @@ class KBCModel(nn.Module, ABC):
 
                 elif 'cosine' in similarity_metric.lower():
 
-                    for i in range(obj_matrix_copy.shape[0]):
-                        closest_vec = self.__closest_vector__(obj_matrix_copy[i:i+1],search_list_copy, similarity_metric)
+                    #implement the ranking task for cosine similarity
+                    indices_rankedby_distances = None
+
+                    for i in range(obj_matrix.shape[0]):
+                        closest_vec = self.__closest_vector__(obj_matrix[i:i+1],search_list, similarity_metric)
                         closest_matrix.append(closest_vec)
                         bar.update(1)
 
@@ -227,7 +316,7 @@ class KBCModel(nn.Module, ABC):
             print("Cannot Find the closest Matrix with error {}".format(str(e)))
             return None
 
-        return closest_matrix
+        return closest_matrix,indices_rankedby_distances
 
     def __closest_vector__(self,obj_vec: torch.Tensor, search_list: torch.Tensor, similarity_metric : str = 'l2'):
 
@@ -297,6 +386,13 @@ class CP(KBCModel):
         rel = self.rel(x[:, 1])
 
         return (lhs,rel)
+
+    def get_full_embeddigns(self, queries: torch.Tensor):
+        lhs = self.lhs(queries[:, 0])
+        rel = self.rel(queries[:, 1])
+        rhs = self.rhs(queries[:, 2])
+
+        return (lhs,rel,rhs)
 
     def get_queries(self, queries: torch.Tensor):
         return self.lhs(queries[:, 0]).data * self.rel(queries[:, 1]).data
@@ -382,6 +478,12 @@ class ComplEx(KBCModel):
 
         return (lhs, rel)
 
+    def get_full_embeddigns(self, queries: torch.Tensor):
+        lhs = self.embeddings[0](queries[:, 0])
+        rel = self.embeddings[1](queries[:, 1])
+        rhs = self.embeddings[0](queries[:, 2])
+
+        return (lhs,rel,rhs)
 
     def get_queries(self, queries: torch.Tensor):
         lhs = self.embeddings[0](queries[:, 0])

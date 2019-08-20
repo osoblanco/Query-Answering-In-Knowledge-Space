@@ -45,7 +45,7 @@ def train_kbc(KBC_optimizer, dataset, args):
 		curve = {'train': [], 'valid': [], 'test': []}
 
 		timestamp = str(int(time.time()))
-		for epoch in range(1,max_epochs):
+		for epoch in range(1,max_epochs+1):
 
 			cur_loss = KBC_optimizer.train_epoch(examples)
 
@@ -54,6 +54,13 @@ def train_kbc(KBC_optimizer, dataset, args):
 					avg_both(*dataset.eval(KBC_optimizer.model, split, -1 if split != 'train' else 50000))
 					for split in ['valid', 'test', 'train']
 				]
+
+				curve['valid'].append(valid)
+				curve['test'].append(test)
+				curve['train'].append(train)
+
+				print("\t TRAIN: ", train)
+				print("\t VALID : ", valid)
 
 			if epoch%model_save_schedule == 0 and epoch > 0:
 				if not os.path.isdir('models'):
@@ -74,12 +81,7 @@ def train_kbc(KBC_optimizer, dataset, args):
 				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
   					json.dump(vars(args), json_file)
 
-				curve['valid'].append(valid)
-				curve['test'].append(test)
-				curve['train'].append(train)
 
-				print("\t TRAIN: ", train)
-				print("\t VALID : ", valid)
 
 		results = dataset.eval(model, 'test', -1)
 		print("\n\nTEST : ", results)

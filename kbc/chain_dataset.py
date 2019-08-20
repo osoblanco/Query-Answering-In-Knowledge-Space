@@ -417,7 +417,7 @@ class ChaineDataset():
 def save_chain_data(save_path, dataset_name, data):
     try:
 
-        full_path = os.path.join(save_path,dataset_name)
+        full_path = os.path.join(save_path,dataset_name+".pkl")
 
         with open(full_path, 'wb') as f:
             pickle.dump(data,f,-1)
@@ -454,7 +454,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-    '--threshold',default = 1e5,
+    '--threshold',default = 1e5,type=int,
     help="Threshold for maximum amount sampled per chain type"
     )
 

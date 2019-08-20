@@ -8,7 +8,7 @@ train_ents = []
 test_ents = []
 val_ents = []
 
-def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 1e5, test_threshold = 5e4, val_threshold = 5e3):
+def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 1e5, test_threshold = 5e3, val_threshold = 5e3):
     queries = None
     try:
         global query_name_to_id_map,val_ents,test_ents,train_ents
@@ -45,6 +45,8 @@ def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 1e5, test_threshold =
 
             q = []
             ind = 0
+
+            #TODO PARALELIZE EZ FIX#
             while len(q) <= test_threshold:
                 query = queries[ind]
                 if  query[0] in train_ents and query[2] in train_ents:
@@ -68,6 +70,7 @@ def bioq_to_kbcq(queries_raw, data_mode, train_threshold = 1e5, test_threshold =
 
             q = []
             ind = 0
+            #TODO PARALELIZE EZ FIX#
             while len(q) <= val_threshold:
                 query = queries[ind]
                 if  query[0] in train_ents and query[2] in train_ents:
