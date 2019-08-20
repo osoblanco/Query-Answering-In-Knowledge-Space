@@ -440,7 +440,7 @@ def load_chain_data(data_path):
 
 if __name__ == "__main__":
 
-    big_datasets = ['FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+    big_datasets = ['Bio','FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
     datasets = big_datasets
 
     parser = argparse.ArgumentParser(

@@ -235,6 +235,6 @@ if __name__ == "__main__":
     # obj_guess, closest_map =  get_optimization(args.model_path, args.dataset, args.dataset_mode, args.similarity_metric)
 
 
-    WN = pickle.load(open("WN.pkl",'rb'))
+    WN = pickle.load(open("Bio.pkl",'rb'))
 
     obj_guess, closest_map =  get_type12_graph_optimizaton(args.model_path, WN, args.dataset_mode, args.similarity_metric)
