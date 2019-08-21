@@ -12,8 +12,9 @@ from kbc.learn import dataset_to_query
 from kbc.chain_dataset import ChaineDataset
 from kbc.chain_dataset import Chain
 
+
 def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
-    obj_guess, closest_map = None, None
+    obj_guess_raw, closest_map = None, None
     try:
 
         kbc,epoch,loss = kbc_model_load(kbc_path)
@@ -74,12 +75,12 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
         print("Cannot Optimise the Query space with error: {}".format(str(e)))
         return None, None
 
-    return obj_guess, closest_map
+    return obj_guess_raw, closest_map
 
 
 
 def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
-    obj_guess, closest_map = None, None
+    obj_guess_raw, closest_map = None, None
 
     try:
 
@@ -171,7 +172,7 @@ def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
                 # print(predicted_ids[i],target_ids[i])
                 correct+=1.0
 
-        print("Accuracy at {}".format(correct/(len(target_ids))))
+        print("Accuracy at {}".format(correct/(len(predicted_ids))))
 
 
         average_percentile_rank = 0.0
