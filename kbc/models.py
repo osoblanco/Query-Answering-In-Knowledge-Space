@@ -417,6 +417,99 @@ class KBCModel(nn.Module, ABC):
         return obj_guess_1, obj_guess_2, closest_map_1,closest_map_2, indices_rankedby_distances_1,indices_rankedby_distances_2
 
 
+    def type1_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+        try:
+            try:
+                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+                rhs_1 = chain1[2].clone().detach().requires_grad_(False).to(chain1[2].device)
+
+                lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
+                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+
+                rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
+                rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
+
+            except:
+                print("Cuda Memory not enough trying a hack")
+                lhs_1 = chain1[0]
+                rel_1 = chain1[1]
+                rhs_1 = chain1[2]
+
+                lhs_2 = chain2[0]
+                rel_2 = chain2[1]
+
+                rel_3 = chain3[1]
+                rhs_3 = chain3[2]
+
+
+            obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
+            obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
+
+            optimizer = optim.Adam([obj_guess], lr=0.1)
+
+            prev_loss =  torch.tensor([1000.], dtype = torch.float)
+            loss = torch.tensor([999.],dtype=torch.float)
+
+
+            with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+
+                i =1
+                while i <= max_steps and (prev_loss - loss)>1e-30:
+
+                    prev_loss = loss.clone()
+
+                    # l_reg_1 = regularizer.forward((lhs_1, rel_1, rhs_1))
+                    # score_1 = -(self.score_emb(lhs_1, rel_1, rhs_1))
+
+                    l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
+                    score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess) )
+
+                    l_reg_3 = regularizer.forward((obj_guess, rel_3, rhs_3))
+                    score_3 = -(self.score_emb(obj_guess, rel_3, rhs_3))
+
+
+
+                    loss = torch.min(torch.stack([score_2,score_3])) - (-l_reg_3 - l_reg_2 )
+
+                    optimizer.zero_grad()
+
+                    loss.backward()
+                    optimizer.step()
+
+                    i+=1
+                    bar.update(1)
+                    bar.set_postfix(loss=f'{loss.item():.6f}')
+
+                if i != max_steps:
+                    bar.update(max_steps-i +1)
+
+
+                    print("\n\n Search converged early after {} iterations".format(i))
+
+
+                torch.cuda.empty_cache()
+                gc.collect()
+
+                if 'cp' in self.model_type().lower():
+                    closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
+
+                elif 'complex' in self.model_type().lower():
+                    closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
+
+                else:
+                    print("Choose model type from cp or complex please")
+                    raise
+
+        except RuntimeError as e:
+            print("Cannot optimize the queries with error {}".format(str(e)))
+            return None
+
+        return obj_guess,closest_map,indices_rankedby_distances
+
+
+
     def __expanded_pairwise_distances__(self,x, y=None):
         '''
         Input: x is a Nxd matrix

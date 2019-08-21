@@ -77,6 +77,7 @@ Find the target vectors and answer the queries as described in the paper(TODO: A
 
 ```
 python kbc/query_space_optimize.py --model_path models/Bio-model-epoch-30-1566308599.pt \
---dataset Bio --dataset_mode test --similarity_metric l2
+--dataset Bio --dataset_mode test --similarity_metric l2 --chain_type 1_3
+
 
 ```
