@@ -81,3 +81,9 @@ python kbc/query_space_optimize.py --model_path models/Bio-model-epoch-30-156630
 
 
 ```
+
+___
+
+## TODO
+
+[ ] Refactor the code into more general functions for different chains types in ```models.py``` and ```query_space_optimize.py```
