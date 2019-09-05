@@ -635,8 +635,8 @@ class KBCModel(nn.Module, ABC):
 
                     prev_loss = loss.clone()
 
-                    l_reg_1 = regularizer.forward((lhs_1, rel_1, lhs_2)) *1e-10
-                    score_1 = -(self.score_emb(lhs_1, rel_1, lhs_2))*1e-10
+                    # l_reg_1 = regularizer.forward((lhs_1, rel_1, lhs_2)) *0
+                    # score_1 = -(self.score_emb(lhs_1, rel_1, lhs_2))*0
 
                     l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
                     score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess) )
@@ -644,7 +644,7 @@ class KBCModel(nn.Module, ABC):
                     l_reg_3 = regularizer.forward((lhs_3, rel_3, obj_guess))
                     score_3 = -(self.score_emb(lhs_3, rel_3, obj_guess))
 
-                    loss = torch.min(torch.stack([score_1,score_2,score_3])) - (-l_reg_1 - l_reg_2 - l_reg_3 )
+                    loss = torch.min(torch.stack([score_2,score_3])) - ( - l_reg_2 - l_reg_3 )
 
                     optimizer.zero_grad()
 
@@ -721,8 +721,8 @@ class KBCModel(nn.Module, ABC):
 
                     prev_loss = loss.clone()
 
-                    l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess)) *1e-10
-                    score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess))*1e-10
+                    l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
+                    score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess))
 
                     l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
                     score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess) )
