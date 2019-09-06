@@ -1,6 +1,7 @@
 # Query Answering In Knowledge Space
 
-This Code is the implementation of "Optimized Query Answering in Knowledge Space" inspired from ["Querying Complex Networks in Vector Space"](https://github.com/williamleif/graphqembed)
+This Code is the implementation of "Query Answering with Knowledge Graph
+Embeddings via Continuous Optimisation" inspired from ["Querying Complex Networks in Vector Space"](https://github.com/williamleif/graphqembed)
 
 The implementation builds upon and expands the code-base from [Canonical Tensor Decomposition for Knowledge Base Completion](https://arxiv.org/abs/1806.07297) from  FAIR.
 
@@ -81,6 +82,32 @@ python kbc/query_space_optimize.py --model_path models/Bio-model-epoch-30-156630
 
 
 ```
+
+### Results
+
+|         |    Bio   |                                                            |   |                            WN18                            |
+|:-------:|:--------:|:----------------------------------------------------------:|:-:|:----------------------------------------------------------:|
+|         |    GQE   | Continuous Optimization with KG embeddings. (Our solution) |   | Continuous Optimization with KG embeddings. (Our solution) |
+|  Type-1 |   0.99   |                            0.99                            |   |                          0.987742                          |
+| Type1-2 | 0.931927 |                        $\sim$0.95737                       |   |                          0.996718                          |
+| Type2-2 | 0.925571 |                        $\sim$0.96639                       |   |                          0.996269                          |
+| Type1-3 |  0.89373 |                        $\sim$0.96461                       |   |                          0.9985055                         |
+| Type2-3 | 0.881848 |                        $\sim$0.93691                       |   |                          0.9907173                         |
+| Type3-3 |  0.87890 |                        $\sim$0.93952                       |   |                         0.99603959                         |
+| Type4-3 | 0.886478 |                        $\sim$0.85132                       |   |                         0.99331019                         |
+
+
+|          | Hits@1 | Hits@1 |
+|:--------:|--------|--------|
+|          |   Bio  |  WN18  |
+|  Type 1  |  0.561 | 0.9774 |
+| Type 1-2 |  0.704 | 0.8642 |
+| Type 2-2 |  0.599 | 0.9336 |
+| Type 1-3 |  0.629 | 0.9312 |
+| Type 2-3 |  0.599 | 0.8868 |
+| Type 3-3 |  0.582 | 0.8112 |
+| Type 4-3 |  0.503 | 0.8176 |
+
 
 ___
 

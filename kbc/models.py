@@ -394,7 +394,8 @@ class KBCModel(nn.Module, ABC):
                     l_reg_3 = regularizer.forward((obj_guess_2, rel_3, rhs_3))
                     score_3 = -(self.score_emb(obj_guess_2, rel_3, rhs_3))
 
-                    loss = torch.min(torch.stack([score_1,score_2,score_3])) - (-l_reg_3 - l_reg_2 - l_reg_1)
+                    loss = torch.min(torch.stack([score_1,score_2,score_3])) - (-l_reg_3 - l_reg_2 - l_reg_1) \
+                    + 0.0001*((torch.dist(obj_guess_1, lhs_1, 2)) + (torch.dist(obj_guess_2, rhs_3, 2)))/2.0
 
                     optimizer.zero_grad()
 
