@@ -85,16 +85,17 @@ python kbc/query_space_optimize.py --model_path models/Bio-model-epoch-30-156630
 
 ### Results
 
-|         |    Bio   |                                                            |   |                            WN18                            |
+|         |    Bio   |                             Bio                            |   |                            WN18                            |
 |:-------:|:--------:|:----------------------------------------------------------:|:-:|:----------------------------------------------------------:|
-|         |    GQE   | Continuous Optimization with KG embeddings. (Our solution) |   | Continuous Optimization with KG embeddings. (Our solution) |
+|         |   GQE    | Continuous Optimization with KG embeddings. (Our solution) |   | Continuous Optimization with KG embeddings. (Our solution) |
 |  Type-1 |   0.99   |                            0.99                            |   |                          0.987742                          |
-| Type1-2 | 0.931927 |                        $\sim$0.95737                       |   |                          0.996718                          |
-| Type2-2 | 0.925571 |                        $\sim$0.96639                       |   |                          0.996269                          |
-| Type1-3 |  0.89373 |                        $\sim$0.96461                       |   |                          0.9985055                         |
-| Type2-3 | 0.881848 |                        $\sim$0.93691                       |   |                          0.9907173                         |
-| Type3-3 |  0.87890 |                        $\sim$0.93952                       |   |                         0.99603959                         |
-| Type4-3 | 0.886478 |                        $\sim$0.85132                       |   |                         0.99331019                         |
+| Type1-2 | 0.931927 |                           0.95737                          |   |                          0.996718                          |
+| Type2-2 | 0.925571 |                           0.96639                          |   |                          0.996269                          |
+| Type1-3 |  0.89373 |                           0.96461                          |   |                          0.9985055                         |
+| Type2-3 | 0.881848 |                           0.93691                          |   |                          0.9907173                         |
+| Type3-3 |  0.87890 |                           0.93952                          |   |                         0.99603959                         |
+| Type4-3 | 0.886478 |                           0.85132                          |   |                         0.99331019                         |
+
 
 
 |          | Hits@1 | Hits@1 |
