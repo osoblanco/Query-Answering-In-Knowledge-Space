@@ -58,7 +58,7 @@ python kbc/learn.py --dataset Bio --model ComplEx --max_epochs 30 \
 
 ```
 
-All of the input parametrsoptions can be found in both the code documentation or simply by using `-help` in the command line.
+All of the input parameters and options can be found in both the code documentation or simply by using `-help` in the command line.
 
 ## Optimization and Benchmarks
 
@@ -86,4 +86,4 @@ ___
 
 ## TODO
 
-[ ] Refactor the code into more general functions for different chains types in ```models.py``` and ```query_space_optimize.py```
+- [ ] Refactor the code into more general functions for different chains types in ```models.py``` and ```query_space_optimize.py```

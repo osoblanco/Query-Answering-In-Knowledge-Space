@@ -29,7 +29,8 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
 
         lhs_norm/= len(queries[0])
 
-        obj_guess_raw, closest_map, indices_rankedby_distances = kbc.model.projected_gradient_descent(queries, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        obj_guess_raw, closest_map, indices_rankedby_distances = kbc.model.projected_gradient_descent(queries, \
+                                            kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
 
         guess_norm = 0.0
         for obj_emb in obj_guess_raw:
@@ -60,10 +61,6 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
             if correct_ans_index >1000:
                 correct_ans_index = 1000
 
-
-            print(correct_ans_index)
-
-
             average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
 
         average_percentile_rank /= len(indices_rankedby_distances)
@@ -78,7 +75,7 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
 
 
 
-def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess, closest_map = None, None
 
     try:
@@ -148,7 +145,8 @@ def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         lhs_norm/= len(chain1[0])
 
         obj_guess_raw, closest_map, indices_rankedby_distances \
-        = kbc.model.type1_2chain_optimize(chain1,chain2, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        = kbc.model.type1_2chain_optimize(chain1,chain2, kbc.regularizer,\
+        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
         guess_norm = 0.0
@@ -201,7 +199,7 @@ def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
     return obj_guess_raw, closest_map
 
-def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess_raw, closest_map = None, None
 
     try:
@@ -252,7 +250,8 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         lhs_norm/= len(chain1[0])
 
         obj_guess_raw, closest_map, indices_rankedby_distances \
-        = kbc.model.type2_2chain_optimize(chain1,chain2, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        = kbc.model.type2_2chain_optimize(chain1,chain2, kbc.regularizer,\
+        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
         guess_norm = 0.0
@@ -307,7 +306,7 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
 
 
-def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
 
@@ -390,7 +389,8 @@ def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similari
 
         obj_guess_raw_1, obj_guess_raw_2, closest_map_1,closest_map_2, \
         indices_rankedby_distances_1, indices_rankedby_distances_2 \
-        = kbc.model.type1_3chain_optimize_joint(chain1,chain2,chain3, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        = kbc.model.type1_3chain_optimize_joint(chain1,chain2,chain3, kbc.regularizer,\
+        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
         guess_norm_1 = 0.0
@@ -464,7 +464,7 @@ def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similari
         return None
     return "Completed"
 
-def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
 
@@ -546,7 +546,8 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         lhs_norm/= len(chain1[0])
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type1_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        = kbc.model.type1_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
         guess_norm = 0.0
@@ -611,7 +612,7 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
     return obj_guess_raw,closest_map
 
 
-def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
 
@@ -674,7 +675,8 @@ def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         lhs_norm/= len(chain1[0])
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type2_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        = kbc.model.type2_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
         guess_norm = 0.0
@@ -738,7 +740,7 @@ def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
     return obj_guess_raw,closest_map
 
-def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
 
@@ -800,7 +802,8 @@ def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         lhs_norm/= len(chain1[0])
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type3_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        = kbc.model.type3_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
         guess_norm = 0.0
@@ -864,7 +867,7 @@ def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
     return obj_guess_raw,closest_map
 
-def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min'):
 
     try:
 
@@ -946,7 +949,8 @@ def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         lhs_norm/= len(chain1[0])
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type4_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+        = kbc.model.type4_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        max_steps=1000,similarity_metric=similarity_metric, t_norm=t_norm)
 
 
         guess_norm = 0.0
@@ -1021,6 +1025,7 @@ if __name__ == "__main__":
     similarity_metrics = ['l2', 'Eculidian', 'cosine']
 
     chain_types = ['1_1','1_2','2_2','1_3', '1_3_joint', '2_3', '3_3', '4_3','All']
+    t_norms = ['min','product']
 
     parser = argparse.ArgumentParser(
     description="Query space optimizer namespace"
@@ -1051,6 +1056,11 @@ if __name__ == "__main__":
     help="Chain type experimenting for ".format(chain_types)
     )
 
+    parser.add_argument(
+    '--t_norm', choices=t_norms, default='min',
+    help="T-norms available are ".format(t_norms)
+    )
+
     args = parser.parse_args()
 
 
@@ -1063,22 +1073,22 @@ if __name__ == "__main__":
         data = pickle.load(open(data_path,'rb'))
 
         if '1_2' in args.chain_type:
-            ans =  get_type12_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric)
+            ans =  get_type12_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
         if '2_2' in args.chain_type:
-            ans =  get_type22_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric)
+            ans =  get_type22_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
         if '1_3_joint' == args.chain_type:
-            ans =  get_type13_graph_optimizaton_joint(args.model_path, data, args.dataset_mode, args.similarity_metric)
+            ans =  get_type13_graph_optimizaton_joint(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
         if '1_3' == args.chain_type:
-            ans =  get_type13_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric)
+            ans =  get_type13_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
         if '2_3' == args.chain_type:
-            ans =  get_type23_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric)
+            ans =  get_type23_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
         if '3_3' == args.chain_type:
-            ans =  get_type33_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric)
+            ans =  get_type33_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
         if '4_3' == args.chain_type:
-            ans =  get_type43_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric)
+            ans =  get_type43_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)

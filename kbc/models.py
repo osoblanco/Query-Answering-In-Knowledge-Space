@@ -14,6 +14,9 @@ from kbc.regularizers import Regularizer
 import tqdm
 import gc
 
+
+import matplotlib.pyplot as plt
+
 class KBCModel(nn.Module, ABC):
     @abstractmethod
     def get_rhs(self, chunk_begin: int, chunk_size: int):
@@ -88,7 +91,7 @@ class KBCModel(nn.Module, ABC):
 
     def projected_gradient_descent(self, query: tuple,regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001,
-                                    similarity_metric : str = 'l2' ):
+                                    similarity_metric : str = 'l2'):
         try:
 
             try:
@@ -112,10 +115,11 @@ class KBCModel(nn.Module, ABC):
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
                 i =1
+                losses = []
+
                 while i <= max_steps and (prev_loss - loss)>1e-30:
 
                     prev_loss = loss.clone()
-
                     l_reg = regularizer.forward((lhs, pred, obj_guess))
                     loss = -(self.score_emb(lhs, pred, obj_guess) - l_reg)
 
@@ -127,6 +131,7 @@ class KBCModel(nn.Module, ABC):
                     i+=1
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
+                    losses.append(loss.item())
 
                 if i != max_steps:
                     bar.update(max_steps-i +1)
@@ -134,6 +139,9 @@ class KBCModel(nn.Module, ABC):
 
                     print("\n\n Search converged early after {} iterations".format(i))
 
+
+
+                #print(losses)
 
                 torch.cuda.empty_cache()
                 if 'cp' in self.model_type().lower():
@@ -152,7 +160,7 @@ class KBCModel(nn.Module, ABC):
         return obj_guess, closest_map, indices_rankedby_distances
 
     def type1_2chain_optimize(self, chain1: tuple, chain2: tuple, regularizer: Regularizer,candidates: int = 1,
-                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+                            max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
             try:
                 lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
@@ -178,6 +186,7 @@ class KBCModel(nn.Module, ABC):
             prev_loss =  torch.tensor([1000.], dtype = torch.float)
             loss = torch.tensor([999.],dtype=torch.float)
 
+            losses = []
 
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
@@ -193,7 +202,10 @@ class KBCModel(nn.Module, ABC):
                     l_reg_2 = regularizer.forward((obj_guess, rel_2, rhs_2))
                     score_2 = -(self.score_emb(obj_guess, rel_2, rhs_2))
 
-                    loss = torch.min(score_1,score_2) - (-l_reg_1 - l_reg_2)
+                    if 'min' in t_norm.lower():
+                        loss = torch.min(score_1,score_2) - (-l_reg_1 - l_reg_2)
+                    elif 'prod' in t_norm.lower():
+                        loss = (score_1 +l_reg_1) * (score_2 + l_reg_2)
 
                     optimizer.zero_grad()
 
@@ -203,6 +215,8 @@ class KBCModel(nn.Module, ABC):
                     i+=1
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
+
+                    losses.append(loss.item())
 
                 if i != max_steps:
                     bar.update(max_steps-i +1)
@@ -221,6 +235,8 @@ class KBCModel(nn.Module, ABC):
                 torch.cuda.empty_cache()
                 gc.collect()
 
+                #print(losses)
+
                 if 'cp' in self.model_type().lower():
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
                 elif 'complex' in self.model_type().lower():
@@ -236,7 +252,7 @@ class KBCModel(nn.Module, ABC):
         return obj_guess, closest_map, indices_rankedby_distances
 
     def type2_2chain_optimize(self, chain1: tuple, chain2: tuple, regularizer: Regularizer,candidates: int = 1,
-                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
             try:
                 lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
@@ -262,6 +278,7 @@ class KBCModel(nn.Module, ABC):
             prev_loss =  torch.tensor([1000.], dtype = torch.float)
             loss = torch.tensor([999.],dtype=torch.float)
 
+            losses = []
 
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
@@ -288,6 +305,9 @@ class KBCModel(nn.Module, ABC):
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
 
+                    losses.append(loss.item())
+
+
                 if i != max_steps:
                     bar.update(max_steps-i +1)
 
@@ -305,6 +325,8 @@ class KBCModel(nn.Module, ABC):
                 torch.cuda.empty_cache()
                 gc.collect()
 
+                #print(losses)
+
                 if 'cp' in self.model_type().lower():
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
                 elif 'complex' in self.model_type().lower():
@@ -321,7 +343,7 @@ class KBCModel(nn.Module, ABC):
 
 
     def type1_3chain_optimize_joint(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
-                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
             try:
                 lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
@@ -355,6 +377,7 @@ class KBCModel(nn.Module, ABC):
             loss = torch.tensor([999.],dtype=torch.float)
 
 
+            losses = []
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
                 i =1
@@ -382,6 +405,9 @@ class KBCModel(nn.Module, ABC):
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
 
+                    losses.append(loss.item())
+
+
                 if i != max_steps:
                     bar.update(max_steps-i +1)
 
@@ -391,6 +417,8 @@ class KBCModel(nn.Module, ABC):
 
                 torch.cuda.empty_cache()
                 gc.collect()
+
+                #print(losses)
 
                 if 'cp' in self.model_type().lower():
                     closest_map_1, indices_rankedby_distances_1 = self.__closest_matrix__(obj_guess_1,self.rhs,similarity_metric)
@@ -418,7 +446,7 @@ class KBCModel(nn.Module, ABC):
 
 
     def type1_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
-                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
             try:
                 lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
@@ -453,6 +481,8 @@ class KBCModel(nn.Module, ABC):
             loss = torch.tensor([999.],dtype=torch.float)
 
 
+            losses = []
+
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
                 i =1
@@ -481,6 +511,7 @@ class KBCModel(nn.Module, ABC):
                     i+=1
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
+                    losses.append(loss.item())
 
                 if i != max_steps:
                     bar.update(max_steps-i +1)
@@ -488,6 +519,7 @@ class KBCModel(nn.Module, ABC):
 
                     print("\n\n Search converged early after {} iterations".format(i))
 
+                #print(losses)
 
                 torch.cuda.empty_cache()
                 gc.collect()
@@ -509,7 +541,7 @@ class KBCModel(nn.Module, ABC):
         return obj_guess,closest_map,indices_rankedby_distances
 
     def type2_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
-                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
             try:
                 lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
@@ -541,6 +573,7 @@ class KBCModel(nn.Module, ABC):
             prev_loss =  torch.tensor([1000.], dtype = torch.float)
             loss = torch.tensor([999.],dtype=torch.float)
 
+            losses = []
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
                 i =1
@@ -568,6 +601,9 @@ class KBCModel(nn.Module, ABC):
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
 
+                    losses.append(loss.item())
+
+
                 if i != max_steps:
                     bar.update(max_steps-i +1)
 
@@ -577,6 +613,8 @@ class KBCModel(nn.Module, ABC):
 
                 torch.cuda.empty_cache()
                 gc.collect()
+
+                #print(losses)
 
                 if 'cp' in self.model_type().lower():
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
@@ -596,7 +634,7 @@ class KBCModel(nn.Module, ABC):
 
 
     def type3_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
-                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
             try:
                 lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
@@ -628,6 +666,7 @@ class KBCModel(nn.Module, ABC):
             prev_loss =  torch.tensor([1000.], dtype = torch.float)
             loss = torch.tensor([999.],dtype=torch.float)
 
+            losses = []
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
                 i =1
@@ -655,6 +694,9 @@ class KBCModel(nn.Module, ABC):
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
 
+                    losses.append(loss.item())
+
+
                 if i != max_steps:
                     bar.update(max_steps-i +1)
 
@@ -664,6 +706,8 @@ class KBCModel(nn.Module, ABC):
 
                 torch.cuda.empty_cache()
                 gc.collect()
+
+                #print(losses)
 
                 if 'cp' in self.model_type().lower():
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
@@ -682,7 +726,7 @@ class KBCModel(nn.Module, ABC):
         return obj_guess,closest_map,indices_rankedby_distances
 
     def type4_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
-                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2' ):
+                                    max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
             try:
                 lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
@@ -714,6 +758,8 @@ class KBCModel(nn.Module, ABC):
             prev_loss =  torch.tensor([1000.], dtype = torch.float)
             loss = torch.tensor([999.],dtype=torch.float)
 
+            losses = []
+
             with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 
                 i =1
@@ -741,6 +787,9 @@ class KBCModel(nn.Module, ABC):
                     bar.update(1)
                     bar.set_postfix(loss=f'{loss.item():.6f}')
 
+                    losses.append(loss.item())
+
+
                 if i != max_steps:
                     bar.update(max_steps-i +1)
 
@@ -750,6 +799,8 @@ class KBCModel(nn.Module, ABC):
 
                 torch.cuda.empty_cache()
                 gc.collect()
+
+                #print(losses)
 
                 if 'cp' in self.model_type().lower():
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
