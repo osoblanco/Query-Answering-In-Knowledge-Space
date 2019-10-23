@@ -11,6 +11,8 @@ from kbc.learn import dataset_to_query
 
 from kbc.chain_dataset import ChaineDataset
 from kbc.chain_dataset import Chain
+from kbc.utils import QuerDAG
+
 
 def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
     obj_guess_raw, closest_map = None, None
@@ -41,6 +43,7 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
         print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
 
         predicted_ids = [x[0] for x in closest_map]
+        print(target_ids)
 
         correct = 0.0
 
@@ -143,9 +146,11 @@ def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
             lhs_norm+=torch.norm(lhs_emb)
 
         lhs_norm/= len(chain1[0])
+        chains = [chain1,chain2]
+
 
         obj_guess_raw, closest_map, indices_rankedby_distances \
-        = kbc.model.type1_2chain_optimize(chain1,chain2, kbc.regularizer,\
+        = kbc.model.type1_2chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
@@ -248,9 +253,10 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
             lhs_norm+=torch.norm(lhs_emb)
 
         lhs_norm/= len(chain1[0])
+        chains = [chain1,chain2]
 
         obj_guess_raw, closest_map, indices_rankedby_distances \
-        = kbc.model.type2_2chain_optimize(chain1,chain2, kbc.regularizer,\
+        = kbc.model.type2_2chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
@@ -545,8 +551,10 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
         lhs_norm/= len(chain1[0])
 
+        chains = [chain1,chain2,chain3]
+
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type1_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        = kbc.model.type1_3chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
@@ -674,8 +682,10 @@ def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
         lhs_norm/= len(chain1[0])
 
+        chains = [chain1,chain2,chain3]
+
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type2_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        = kbc.model.type2_3chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
@@ -801,8 +811,10 @@ def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
         lhs_norm/= len(chain1[0])
 
+        chains = [chain1,chain2,chain3]
+
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type3_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        = kbc.model.type3_3chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
@@ -947,9 +959,10 @@ def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
             lhs_norm+=torch.norm(lhs_emb)
 
         lhs_norm/= len(chain1[0])
+        chains = [chain1,chain2,chain3]
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type4_3chain_optimize(chain1,chain2,chain3, kbc.regularizer,\
+        = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm=t_norm)
 
 
@@ -1015,6 +1028,33 @@ def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
     return obj_guess_raw,closest_map
 
 
+def exhastive_search_comparison(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min', graph_type = QuerDAG.TYPE1_2.value):
+    try:
+
+        obj_guess_optim,closest_map_optim = exhastive_objective_search(kbc_path, dataset, dataset_mode, \
+        similarity_metric = 'l2', t_norm='min',graph_type = graph_type)
+
+
+        if QuerDAG.TYPE1_2.value in graph_type:
+            obj_guess_optim,closest_map_optim = get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+        if QuerDAG.TYPE2_2.value in graph_type:
+            obj_guess_optim,closest_map_optim = get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+        if QuerDAG.TYPE1_3.value in graph_type:
+            obj_guess_optim,closest_map_optim = get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+        if QuerDAG.TYPE2_3.value in graph_type:
+            obj_guess_optim,closest_map_optim = get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+        if QuerDAG.TYPE3_3.value in graph_type:
+            obj_guess_optim,closest_map_optim = get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+        if QuerDAG.TYPE4_3.value in graph_type:
+            obj_guess_optim,closest_map_optim = get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+
+
+
+    except RuntimeError as e:
+        print("Exhastive search Completed with error: ",e)
+        return None
+    return None
+
 
 
 if __name__ == "__main__":
@@ -1024,7 +1064,9 @@ if __name__ == "__main__":
     dataset_modes = ['valid', 'test', 'train']
     similarity_metrics = ['l2', 'Eculidian', 'cosine']
 
-    chain_types = ['1_1','1_2','2_2','1_3', '1_3_joint', '2_3', '3_3', '4_3','All']
+    chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
+    QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All']
+
     t_norms = ['min','product']
 
     parser = argparse.ArgumentParser(
@@ -1052,7 +1094,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-    '--chain_type', choices=chain_types, default='1_1',
+    '--chain_type', choices=chain_types, default=QuerDAG.TYPE1_1.value,
     help="Chain type experimenting for ".format(chain_types)
     )
 
@@ -1064,7 +1106,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    if '1_1' in args.chain_type:
+    if QuerDAG.TYPE1_1.value in args.chain_type:
         obj_guess, closest_map =  get_optimization(args.model_path, args.dataset, args.dataset_mode, args.similarity_metric)
 
     else:
@@ -1072,23 +1114,23 @@ if __name__ == "__main__":
         data_path = args.dataset+'.pkl'
         data = pickle.load(open(data_path,'rb'))
 
-        if '1_2' in args.chain_type:
+        if QuerDAG.TYPE1_2.value in args.chain_type:
             ans =  get_type12_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
-        if '2_2' in args.chain_type:
+        if QuerDAG.TYPE2_2.value in args.chain_type:
             ans =  get_type22_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
-        if '1_3_joint' == args.chain_type:
+        if QuerDAG.TYPE1_3_joint.value == args.chain_type:
             ans =  get_type13_graph_optimizaton_joint(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
-        if '1_3' == args.chain_type:
+        if QuerDAG.TYPE1_3.value == args.chain_type:
             ans =  get_type13_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
-        if '2_3' == args.chain_type:
+        if QuerDAG.TYPE2_3.value == args.chain_type:
             ans =  get_type23_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
-        if '3_3' == args.chain_type:
+        if QuerDAG.TYPE3_3.value == args.chain_type:
             ans =  get_type33_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
 
-        if '4_3' == args.chain_type:
+        if QuerDAG.TYPE4_3.value == args.chain_type:
             ans =  get_type43_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)

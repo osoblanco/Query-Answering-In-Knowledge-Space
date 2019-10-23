@@ -12,8 +12,11 @@ from torch import nn
 from torch import optim
 from kbc.regularizers import Regularizer
 import tqdm
+import enum
+
 import gc
 
+from kbc.utils import QuerDAG
 
 import matplotlib.pyplot as plt
 
@@ -159,24 +162,155 @@ class KBCModel(nn.Module, ABC):
 
         return obj_guess, closest_map, indices_rankedby_distances
 
-    def type1_2chain_optimize(self, chain1: tuple, chain2: tuple, regularizer: Regularizer,candidates: int = 1,
+    def __get_chains__(self, chains:List , graph_type:str =QuerDAG.TYPE1_2.value):
+        try:
+            if '2' in graph_type[-1]:
+                chain1, chain2 = chains
+            elif '3' in graph_type[-1]:
+                chain1, chain2, chain3 = chains
+
+            if QuerDAG.TYPE1_2.value in graph_type:
+                try:
+                    lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                    rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+
+                    rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+                    rhs_2 = chain2[2].clone().detach().requires_grad_(False).to(chain2[2].device)
+                except:
+                    print("Cuda Memory not enough trying a hack")
+                    lhs_1 = chain1[0]
+                    rel_1 = chain1[1]
+
+                    lhs_2 = chain2[1]
+                    rel_2 = chain2[2]
+
+                raw_chain = [lhs_1,rel_1,rel_2,rhs_2]
+
+            elif QuerDAG.TYPE2_2.value in graph_type:
+                try:
+                    lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                    rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+
+                    lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
+                    rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+
+                except:
+                    print("Cuda Memory not enough trying a hack")
+                    lhs_1 = chain1[0]
+                    rel_1 = chain1[1]
+
+                    lhs_2 = chain2[0]
+                    rel_2 = chain2[1]
+
+                raw_chain = [lhs_1,rel_1,lhs_2,rel_2]
+
+            elif QuerDAG.TYPE1_3.value in graph_type:
+                try:
+                    lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                    rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+                    rhs_1 = chain1[2].clone().detach().requires_grad_(False).to(chain1[2].device)
+
+                    lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
+                    rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+
+                    rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
+                    rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
+
+                except:
+                    print("Cuda Memory not enough trying a hack")
+                    lhs_1 = chain1[0]
+                    rel_1 = chain1[1]
+                    rhs_1 = chain1[2]
+
+                    lhs_2 = chain2[0]
+                    rel_2 = chain2[1]
+
+                    rel_3 = chain3[1]
+                    rhs_3 = chain3[2]
+
+                raw_chain = [lhs_1,rel_1,rhs_1,lhs_2,rel_2,rel_3,rhs_3]
+
+            elif QuerDAG.TYPE2_3.value in graph_type or QuerDAG.TYPE3_3.value in graph_type:
+                try:
+                    lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                    rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+
+                    lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
+                    rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+
+                    lhs_3 = chain3[0].clone().detach().requires_grad_(False).to(chain3[0].device)
+                    rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
+
+                except:
+                    print("Cuda Memory not enough trying a hack")
+                    lhs_1 = chain1[0]
+                    rel_1 = chain1[1]
+
+                    lhs_2 = chain2[0]
+                    rel_2 = chain2[1]
+
+                    lhs_3 = chain3[0]
+                    rel_3 = chain3[1]
+
+                raw_chain = [lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3]
+
+            elif QuerDAG.TYPE4_3.value in graph_type:
+                try:
+                    lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                    rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+
+                    lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
+                    rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+
+                    rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
+                    rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
+
+                except:
+                    print("Cuda Memory not enough trying a hack")
+                    lhs_1 = chain1[0]
+                    rel_1 = chain1[1]
+
+                    lhs_2 = chain2[0]
+                    rel_2 = chain2[1]
+
+                    rel_3 = chain3[1]
+                    rhs_3 = chain3[2]
+
+                raw_chain = [lhs_1,rel_1,lhs_2,rel_2,rel_3,rhs_3]
+
+        except RuntimeError as e:
+            print("Cannot Get chains with Error: ",e)
+            return None
+
+        return raw_chain
+
+    def exhastive_objective_search(self, chains: List, regularizer: Regularizer,candidates: int = 1, max_steps: int = 20, \
+                                    step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min', graph_type : str=QuerDAG.TYPE1_2.value):
+        try:
+            if QuerDAG.TYPE1_2.value in graph_type:
+                lhs_1,rel_1,rel_2,rhs_2 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE1_2.value)
+            if QuerDAG.TYPE2_2.value in graph_type:
+                lhs_1,rel_1,lhs_2,rel_2 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE2_2.value)
+            if QuerDAG.TYPE1_3.value in graph_type:
+                lhs_1,rel_1,rhs_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE1_3.value)
+            if QuerDAG.TYPE2_3.value in graph_type:
+                lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE2_3.value)
+            if QuerDAG.TYPE3_3.value in graph_type:
+                lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE3_3.value)
+            if QuerDAG.TYPE4_3.value in graph_type:
+                lhs_1,rel_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE4_3.value)
+
+
+        except RuntimeError as e:
+            print("Exhastive search Completed with error: ",e)
+            return None
+        return None
+
+    def type1_2chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                             max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
-            try:
-                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
 
-                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-                rhs_2 = chain2[2].clone().detach().requires_grad_(False).to(chain2[2].device)
-
-            except:
-                print("Cuda Memory not enough trying a hack")
-                lhs_1 = chain1[0]
-                rel_1 = chain1[1]
-
-                rel_2 = chain2[1]
-                rhs_2 = chain2[2]
-
+            lhs_1,rel_1,rel_2,rhs_2 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE1_2.value)
             obj_guess = torch.rand(rhs_2.shape, requires_grad=True, device=rhs_2.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess = obj_guess.clone().detach().requires_grad_(True).to(rhs_2.device)
 
@@ -251,24 +385,11 @@ class KBCModel(nn.Module, ABC):
 
         return obj_guess, closest_map, indices_rankedby_distances
 
-    def type2_2chain_optimize(self, chain1: tuple, chain2: tuple, regularizer: Regularizer,candidates: int = 1,
+    def type2_2chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
-            try:
-                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
 
-                lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-
-            except:
-                print("Cuda Memory not enough trying a hack")
-                lhs_1 = chain1[0]
-                rel_1 = chain1[1]
-
-                lhs_2 = chain2[0]
-                rel_2 = chain2[1]
-
+            lhs_1,rel_1,lhs_2,rel_2 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE2_2.value)
             obj_guess = torch.rand(lhs_2.shape, requires_grad=True, device=lhs_2.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess = obj_guess.clone().detach().requires_grad_(True).to(lhs_2.device)
 
@@ -364,7 +485,6 @@ class KBCModel(nn.Module, ABC):
                 rel_3 = chain3[1]
                 rhs_3 = chain3[2]
 
-
             obj_guess_1 = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess_1= obj_guess_1.clone().detach().requires_grad_(True).to(lhs_1.device)
 
@@ -446,32 +566,11 @@ class KBCModel(nn.Module, ABC):
         return obj_guess_1, obj_guess_2, closest_map_1,closest_map_2, indices_rankedby_distances_1,indices_rankedby_distances_2
 
 
-    def type1_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
+    def type1_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
-            try:
-                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
-                rhs_1 = chain1[2].clone().detach().requires_grad_(False).to(chain1[2].device)
 
-                lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-
-                rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-                rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
-
-            except:
-                print("Cuda Memory not enough trying a hack")
-                lhs_1 = chain1[0]
-                rel_1 = chain1[1]
-                rhs_1 = chain1[2]
-
-                lhs_2 = chain2[0]
-                rel_2 = chain2[1]
-
-                rel_3 = chain3[1]
-                rhs_3 = chain3[2]
-
+            lhs_1,rel_1,rhs_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE1_3.value)
 
             obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
@@ -490,7 +589,6 @@ class KBCModel(nn.Module, ABC):
                 while i <= max_steps and (prev_loss - loss)>1e-30:
 
                     prev_loss = loss.clone()
-
                     # l_reg_1 = regularizer.forward((lhs_1, rel_1, rhs_1))
                     # score_1 = -(self.score_emb(lhs_1, rel_1, rhs_1))
 
@@ -499,8 +597,6 @@ class KBCModel(nn.Module, ABC):
 
                     l_reg_3 = regularizer.forward((obj_guess, rel_3, rhs_3))
                     score_3 = -(self.score_emb(obj_guess, rel_3, rhs_3))
-
-
 
                     loss = torch.min(torch.stack([score_2,score_3])) - (-l_reg_3 - l_reg_2 )
 
@@ -516,12 +612,9 @@ class KBCModel(nn.Module, ABC):
 
                 if i != max_steps:
                     bar.update(max_steps-i +1)
-
-
                     print("\n\n Search converged early after {} iterations".format(i))
 
                 #print(losses)
-
                 torch.cuda.empty_cache()
                 gc.collect()
 
@@ -541,31 +634,11 @@ class KBCModel(nn.Module, ABC):
 
         return obj_guess,closest_map,indices_rankedby_distances
 
-    def type2_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
+    def type2_3chain_optimize(self, chains:List, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
-            try:
-                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
 
-                lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-
-                lhs_3 = chain3[0].clone().detach().requires_grad_(False).to(chain3[0].device)
-                rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-
-            except:
-                print("Cuda Memory not enough trying a hack")
-                lhs_1 = chain1[0]
-                rel_1 = chain1[1]
-
-                lhs_2 = chain2[0]
-                rel_2 = chain2[1]
-
-                lhs_3 = chain3[0]
-                rel_3 = chain3[1]
-
-
+            lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type  =QuerDAG.TYPE2_3.value)
             obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
 
@@ -634,30 +707,11 @@ class KBCModel(nn.Module, ABC):
         return obj_guess,closest_map,indices_rankedby_distances
 
 
-    def type3_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
+    def type3_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
-            try:
-                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
 
-                lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-
-                lhs_3 = chain3[0].clone().detach().requires_grad_(False).to(chain3[0].device)
-                rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-
-            except:
-                print("Cuda Memory not enough trying a hack")
-                lhs_1 = chain1[0]
-                rel_1 = chain1[1]
-
-                lhs_2 = chain2[0]
-                rel_2 = chain2[1]
-
-                lhs_3 = chain3[0]
-                rel_3 = chain3[1]
-
+            lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE3_3.value)
 
             obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
@@ -704,10 +758,8 @@ class KBCModel(nn.Module, ABC):
 
                     print("\n\n Search converged early after {} iterations".format(i))
 
-
                 torch.cuda.empty_cache()
                 gc.collect()
-
                 #print(losses)
 
                 if 'cp' in self.model_type().lower():
@@ -726,31 +778,11 @@ class KBCModel(nn.Module, ABC):
 
         return obj_guess,closest_map,indices_rankedby_distances
 
-    def type4_3chain_optimize(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
+    def type4_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
-            try:
-                lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-                rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
 
-                lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-                rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-
-                rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-                rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
-
-            except:
-                print("Cuda Memory not enough trying a hack")
-                lhs_1 = chain1[0]
-                rel_1 = chain1[1]
-
-                lhs_2 = chain2[0]
-                rel_2 = chain2[1]
-
-                rel_3 = chain3[1]
-                rhs_3 = chain3[2]
-
-
+            lhs_1,rel_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE4_3.value)
             obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
 
@@ -793,8 +825,6 @@ class KBCModel(nn.Module, ABC):
 
                 if i != max_steps:
                     bar.update(max_steps-i +1)
-
-
                     print("\n\n Search converged early after {} iterations".format(i))
 
 
@@ -802,7 +832,6 @@ class KBCModel(nn.Module, ABC):
                 gc.collect()
 
                 #print(losses)
-
                 if 'cp' in self.model_type().lower():
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
 
