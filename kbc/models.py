@@ -141,9 +141,6 @@ class KBCModel(nn.Module, ABC):
 
 
                     print("\n\n Search converged early after {} iterations".format(i))
-
-
-
                 #print(losses)
 
                 torch.cuda.empty_cache()
@@ -284,27 +281,6 @@ class KBCModel(nn.Module, ABC):
 
         return raw_chain
 
-    def exhastive_objective_search(self, chains: List, regularizer: Regularizer,candidates: int = 1, max_steps: int = 20, \
-                                    step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min', graph_type : str=QuerDAG.TYPE1_2.value):
-        try:
-            if QuerDAG.TYPE1_2.value in graph_type:
-                lhs_1,rel_1,rel_2,rhs_2 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE1_2.value)
-            if QuerDAG.TYPE2_2.value in graph_type:
-                lhs_1,rel_1,lhs_2,rel_2 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE2_2.value)
-            if QuerDAG.TYPE1_3.value in graph_type:
-                lhs_1,rel_1,rhs_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE1_3.value)
-            if QuerDAG.TYPE2_3.value in graph_type:
-                lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE2_3.value)
-            if QuerDAG.TYPE3_3.value in graph_type:
-                lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE3_3.value)
-            if QuerDAG.TYPE4_3.value in graph_type:
-                lhs_1,rel_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE4_3.value)
-
-
-        except RuntimeError as e:
-            print("Exhastive search Completed with error: ",e)
-            return None
-        return None
 
     def type1_2chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                             max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):

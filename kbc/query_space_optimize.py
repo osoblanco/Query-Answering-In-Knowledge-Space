@@ -12,7 +12,7 @@ from kbc.learn import dataset_to_query
 from kbc.chain_dataset import ChaineDataset
 from kbc.chain_dataset import Chain
 from kbc.utils import QuerDAG
-
+from kbc.utils import DynKBCSingleton
 
 def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
     obj_guess_raw, closest_map = None, None
@@ -43,7 +43,6 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
         print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
 
         predicted_ids = [x[0] for x in closest_map]
-        print(target_ids)
 
         correct = 0.0
 
@@ -76,83 +75,414 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
 
     return obj_guess_raw, closest_map
 
+def preload_env(kbc_path, dataset, dataset_mode, graph_type):
+
+    env = DynKBCSingleton.getInstance()
+
+    try:
+
+        kbc,epoch,loss = kbc_model_load(kbc_path)
+
+        if QuerDAG.TYPE1_2.value in graph_type:
+
+            raw = dataset.type1_2chain
+
+            type1_2chain = []
+            for i in range(len(raw)):
+                type1_2chain.append(raw[i].data)
+
+            part1 = [x['raw_chain'][0] for x in type1_2chain]
+            part2 = [x['raw_chain'][1] for x in type1_2chain]
+
+            flattened_part1 =[]
+            flattened_part2 = []
+
+            # [[A,b,C][C,d,[Es]]
+
+            for chain_iter in range(len(part2)):
+                for target in part2[chain_iter][2]:
+                    flattened_part2.append([part2[chain_iter][0],part2[chain_iter][1],target])
+                    flattened_part1.append(part1[chain_iter])
+
+
+            part1 = flattened_part1
+            part2 = flattened_part2
+
+            # SAMPLING HACK
+            if len(part1) > 5000:
+                part1 = part1[:5000]
+                part2 = part2[:5000]
+
+            target_ids = {}
+
+            for chain_iter in range(len(part2)):
+
+                key = [part1[chain_iter][0],part1[chain_iter][1],part2[chain_iter][1],part2[chain_iter][2]]
+                key = '_'.join(str(e) for e in key)
+
+                if key not in target_ids:
+                    target_ids[key] = []
+
+                target_ids[key].append(part1[chain_iter][2])
+
+            part1 = np.array(part1)
+            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part2 = np.array(part2)
+            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+
+
+            print(len(chain1[0]))
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+
+            chains = [chain1,chain2]
+            parts = [part1, part2]
+
+        if QuerDAG.TYPE2_2.value in graph_type:
+
+            raw = dataset.type2_2chain
+
+            type2_2chain = []
+            for i in range(len(raw)):
+                type2_2chain.append(raw[i].data)
+
+
+            part1 = [x['raw_chain'][0] for x in type2_2chain]
+            part2 = [x['raw_chain'][1] for x in type2_2chain]
+
+            target_ids = {}
+
+            for chain_iter in range(len(part2)):
+
+                key = [part1[chain_iter][0],part1[chain_iter][1],part2[chain_iter][0],part1[chain_iter][1]]
+                key = '_'.join(str(e) for e in key)
+
+                if key not in target_ids:
+                    target_ids[key] = []
+
+                target_ids[key].append(part1[chain_iter][2])
+
+
+            part1 = np.array(part1)
+            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+
+            part2 = np.array(part2)
+            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+
+            print(len(chain1[0]))
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+            chains = [chain1,chain2]
+            parts = [part1,part2]
+
+
+        if QuerDAG.TYPE1_3.value in graph_type:
+            raw = dataset.type1_3chain
+
+            type1_3chain = []
+            for i in range(len(raw)):
+                type1_3chain.append(raw[i].data)
+
+
+            part1 = [x['raw_chain'][0] for x in type1_3chain]
+            part2 = [x['raw_chain'][1] for x in type1_3chain]
+            part3 = [x['raw_chain'][2] for x in type1_3chain]
+
+
+            flattened_part1 =[]
+            flattened_part2 = []
+            flattened_part3 = []
+
+            # [A,b,C][C,d,[Es]]
+
+            for chain_iter in range(len(part3)):
+                for target in part3[chain_iter][2]:
+
+                    flattened_part3.append([part3[chain_iter][0],part3[chain_iter][1],target])
+                    flattened_part2.append(part2[chain_iter])
+                    flattened_part1.append(part1[chain_iter])
+
+
+            part1 = flattened_part1
+            part2 = flattened_part2
+            part3 = flattened_part3
+
+
+            # SAMPLING HACK
+            if len(part1) > 5000:
+                part1 = part1[:5000]
+                part2 = part2[:5000]
+                part3 = part3[:5000]
+
+            target_ids = {}
+
+            for chain_iter in range(len(part1)):
+
+                key = [part1[chain_iter][0],part1[chain_iter][1],\
+                        part2[chain_iter][0],part2[chain_iter][1],\
+                            part3[chain_iter][1],part3[chain_iter][2]
+                    ]
+
+                key = '_'.join(str(e) for e in key)
+
+                if key not in target_ids:
+                    target_ids[key] = []
+
+                target_ids[key].append(part2[chain_iter][2])
+
+            part1 = np.array(part1)
+            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part2 = np.array(part2)
+            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part3 = np.array(part3)
+            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+            chain3 = kbc.model.get_full_embeddigns(part3)
+
+            print(len(chain1[0]))
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+
+            chains = [chain1,chain2,chain3]
+            parts = [part1, part2, part3]
+
+        if QuerDAG.TYPE2_3.value in graph_type:
+            raw = dataset.type2_3chain
+
+            type2_3chain = []
+            for i in range(len(raw)):
+                type2_3chain.append(raw[i].data)
+
+
+            part1 = [x['raw_chain'][0] for x in type2_3chain]
+            part2 = [x['raw_chain'][1] for x in type2_3chain]
+            part3 = [x['raw_chain'][2] for x in type2_3chain]
+
+
+            # SAMPLING HACK
+            if len(part1) > 5000:
+                part1 = part1[:5000]
+                part2 = part2[:5000]
+                part3 = part3[:5000]
+
+            target_ids = {}
+
+            for chain_iter in range(len(part1)):
+
+                key = [part1[chain_iter][0],part1[chain_iter][1],\
+                        part2[chain_iter][0],part2[chain_iter][1],\
+                            part3[chain_iter][0],part3[chain_iter][1]
+                    ]
+
+                key = '_'.join(str(e) for e in key)
+
+                if key not in target_ids:
+                    target_ids[key] = []
+
+                target_ids[key].append(part1[chain_iter][2])
+
+            part1 = np.array(part1)
+            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part2 = np.array(part2)
+            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part3 = np.array(part3)
+            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+            chain3 = kbc.model.get_full_embeddigns(part3)
+
+
+            print(len(chain1[0]))
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+
+            chains = [chain1,chain2,chain3]
+            parts = [part1,part2,part3]
+
+        if QuerDAG.TYPE3_3.value in graph_type:
+
+            raw = dataset.type3_3chain
+
+            type3_3chain = []
+            for i in range(len(raw)):
+                type3_3chain.append(raw[i].data)
+
+
+            part1 = [x['raw_chain'][0] for x in type3_3chain]
+            part2 = [x['raw_chain'][1] for x in type3_3chain]
+            part3 = [x['raw_chain'][2] for x in type3_3chain]
+
+            # SAMPLING HACK
+            if len(part1) > 5000:
+                part1 = part1[:5000]
+                part2 = part2[:5000]
+                part3 = part3[:5000]
+
+            target_ids = {}
+
+            for chain_iter in range(len(part1)):
+
+                key = [part1[chain_iter][0],part1[chain_iter][1],\
+                        part2[chain_iter][0],part2[chain_iter][1],\
+                            part3[chain_iter][0],part3[chain_iter][1]
+                    ]
+
+                key = '_'.join(str(e) for e in key)
+
+                if key not in target_ids:
+                    target_ids[key] = []
+
+                target_ids[key].append(part2[chain_iter][2])
+
+            part1 = np.array(part1)
+            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part2 = np.array(part2)
+            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part3 = np.array(part3)
+            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+            chain3 = kbc.model.get_full_embeddigns(part3)
+
+
+            print(len(chain1[0]))
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+
+            chains = [chain1,chain2,chain3]
+            parts = [part1, part2, part3]
+
+        if QuerDAG.TYPE4_3.value in graph_type:
+            raw = dataset.type4_3chain
+
+            type4_3chain = []
+            for i in range(len(raw)):
+                type4_3chain.append(raw[i].data)
+
+
+            part1 = [x['raw_chain'][0] for x in type4_3chain]
+            part2 = [x['raw_chain'][1] for x in type4_3chain]
+            part3 = [x['raw_chain'][2] for x in type4_3chain]
+
+
+            flattened_part1 =[]
+            flattened_part2 = []
+            flattened_part3 = []
+
+            # [A,r_1,B][C,r_2,B][B, r_3, [D's]]
+
+            for chain_iter in range(len(part3)):
+                for target in part3[chain_iter][2]:
+
+                    flattened_part3.append([part3[chain_iter][0],part3[chain_iter][1],target])
+                    flattened_part2.append(part2[chain_iter])
+                    flattened_part1.append(part1[chain_iter])
+
+
+            part1 = flattened_part1
+            part2 = flattened_part2
+            part3 = flattened_part3
+
+
+            # SAMPLING HACK
+            if len(part1) > 5000:
+                part1 = part1[:5000]
+                part2 = part2[:5000]
+                part3 = part3[:5000]
+
+            target_ids = {}
+
+            for chain_iter in range(len(part1)):
+
+                key = [part1[chain_iter][0],part1[chain_iter][1],\
+                        part2[chain_iter][0],part2[chain_iter][1],\
+                            part3[chain_iter][1],part3[chain_iter][2]
+                    ]
+
+                key = '_'.join(str(e) for e in key)
+
+                if key not in target_ids:
+                    target_ids[key] = []
+
+                target_ids[key].append(part2[chain_iter][2])
+
+            part1 = np.array(part1)
+            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+
+            part2 = np.array(part2)
+            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+
+            part3 = np.array(part3)
+            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+            chain3 = kbc.model.get_full_embeddigns(part3)
+
+
+            print(len(chain1[0]))
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+            chains = [chain1,chain2,chain3]
+            parts = [part1,part2,part3]
+
+
+        env.set_attr(kbc,chains,parts,target_ids, lhs_norm)
+
+    except RuntimeError as e:
+        print("Cannot preload environment with error: ", str(e))
+        return None
+
+    return env
+
 
 
 def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess, closest_map = None, None
 
     try:
-
-        kbc,epoch,loss = kbc_model_load(kbc_path)
-
-        raw = dataset.type1_2chain
-
-        type1_2chain = []
-        for i in range(len(raw)):
-            type1_2chain.append(raw[i].data)
-
-
-        part1 = [x['raw_chain'][0] for x in type1_2chain]
-        part2 = [x['raw_chain'][1] for x in type1_2chain]
-
-
-        flattened_part1 =[]
-        flattened_part2 = []
-
-        # [A,b,C][C,d,[Es]]
-
-        for chain_iter in range(len(part2)):
-            for target in part2[chain_iter][2]:
-                flattened_part2.append([part2[chain_iter][0],part2[chain_iter][1],target])
-                flattened_part1.append(part1[chain_iter])
-
-
-        part1 = flattened_part1
-        part2 = flattened_part2
-
-        # SAMPLING HACK
-        if len(part1) > 5000:
-            part1 = part1[:5000]
-            part2 = part2[:5000]
-
-        target_ids = {}
-
-        for chain_iter in range(len(part2)):
-
-            key = [part1[chain_iter][0],part1[chain_iter][1],part2[chain_iter][1],part2[chain_iter][2]]
-            key = '_'.join(str(e) for e in key)
-
-            if key not in target_ids:
-                target_ids[key] = []
-
-            target_ids[key].append(part1[chain_iter][2])
-
-
-        part1 = np.array(part1)
-        part1 = torch.from_numpy(part1.astype('int64')).cuda()
-
-        part2 = np.array(part2)
-        part2 = torch.from_numpy(part2.astype('int64')).cuda()
-
-
-        chain1 = kbc.model.get_full_embeddigns(part1)
-        chain2 = kbc.model.get_full_embeddigns(part2)
-
-
-        print(len(chain1[0]))
-
-        lhs_norm = 0.0
-        for lhs_emb in chain1[0]:
-            lhs_norm+=torch.norm(lhs_emb)
-
-        lhs_norm/= len(chain1[0])
-        chains = [chain1,chain2]
-
+        env = preload_env(kbc_path, dataset, dataset_mode, '1_2')
+        part1, part2 = env.parts
+        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
+        kbc, chains = env.kbc, env.chains
 
         obj_guess_raw, closest_map, indices_rankedby_distances \
         = kbc.model.type1_2chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
-
 
         guess_norm = 0.0
         for obj_emb in obj_guess_raw:
@@ -209,51 +539,10 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
     try:
 
-        kbc,epoch,loss = kbc_model_load(kbc_path)
-
-        raw = dataset.type2_2chain
-
-        type2_2chain = []
-        for i in range(len(raw)):
-            type2_2chain.append(raw[i].data)
-
-
-        part1 = [x['raw_chain'][0] for x in type2_2chain]
-        part2 = [x['raw_chain'][1] for x in type2_2chain]
-
-
-        target_ids = {}
-
-        for chain_iter in range(len(part2)):
-
-            key = [part1[chain_iter][0],part1[chain_iter][1],part2[chain_iter][0],part1[chain_iter][1]]
-            key = '_'.join(str(e) for e in key)
-
-            if key not in target_ids:
-                target_ids[key] = []
-
-            target_ids[key].append(part1[chain_iter][2])
-
-
-        part1 = np.array(part1)
-        part1 = torch.from_numpy(part1.astype('int64')).cuda()
-
-        part2 = np.array(part2)
-        part2 = torch.from_numpy(part2.astype('int64')).cuda()
-
-
-        chain1 = kbc.model.get_full_embeddigns(part1)
-        chain2 = kbc.model.get_full_embeddigns(part2)
-
-
-        print(len(chain1[0]))
-
-        lhs_norm = 0.0
-        for lhs_emb in chain1[0]:
-            lhs_norm+=torch.norm(lhs_emb)
-
-        lhs_norm/= len(chain1[0])
-        chains = [chain1,chain2]
+        env = preload_env(kbc_path, dataset, dataset_mode, '2_2')
+        part1, part2 = env.parts
+        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
+        kbc, chains = env.kbc, env.chains
 
         obj_guess_raw, closest_map, indices_rankedby_distances \
         = kbc.model.type2_2chain_optimize(chains, kbc.regularizer,\
@@ -283,7 +572,6 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
         print("Accuracy at {}".format(correct/(len(predicted_ids))))
 
-
         average_percentile_rank = 0.0
         for i in range(len(indices_rankedby_distances)):
 
@@ -308,6 +596,7 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
     except RuntimeError as e:
         print(e)
         return None
+
     return obj_guess_raw, closest_map
 
 
@@ -474,84 +763,10 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
     try:
 
-        kbc,epoch,loss = kbc_model_load(kbc_path)
-
-        raw = dataset.type1_3chain
-
-        type1_3chain = []
-        for i in range(len(raw)):
-            type1_3chain.append(raw[i].data)
-
-
-        part1 = [x['raw_chain'][0] for x in type1_3chain]
-        part2 = [x['raw_chain'][1] for x in type1_3chain]
-        part3 = [x['raw_chain'][2] for x in type1_3chain]
-
-
-        flattened_part1 =[]
-        flattened_part2 = []
-        flattened_part3 = []
-
-        # [A,b,C][C,d,[Es]]
-
-        for chain_iter in range(len(part3)):
-            for target in part3[chain_iter][2]:
-
-                flattened_part3.append([part3[chain_iter][0],part3[chain_iter][1],target])
-                flattened_part2.append(part2[chain_iter])
-                flattened_part1.append(part1[chain_iter])
-
-
-        part1 = flattened_part1
-        part2 = flattened_part2
-        part3 = flattened_part3
-
-
-        # SAMPLING HACK
-        if len(part1) > 5000:
-            part1 = part1[:5000]
-            part2 = part2[:5000]
-            part3 = part3[:5000]
-
-        target_ids = {}
-
-        for chain_iter in range(len(part1)):
-
-            key = [part1[chain_iter][0],part1[chain_iter][1],\
-                    part2[chain_iter][0],part2[chain_iter][1],\
-                        part3[chain_iter][1],part3[chain_iter][2]
-                ]
-
-            key = '_'.join(str(e) for e in key)
-
-            if key not in target_ids:
-                target_ids[key] = []
-
-            target_ids[key].append(part2[chain_iter][2])
-
-        part1 = np.array(part1)
-        part1 = torch.from_numpy(part1.astype('int64')).cuda()
-
-        part2 = np.array(part2)
-        part2 = torch.from_numpy(part2.astype('int64')).cuda()
-
-        part3 = np.array(part3)
-        part3 = torch.from_numpy(part3.astype('int64')).cuda()
-
-        chain1 = kbc.model.get_full_embeddigns(part1)
-        chain2 = kbc.model.get_full_embeddigns(part2)
-        chain3 = kbc.model.get_full_embeddigns(part3)
-
-
-        print(len(chain1[0]))
-
-        lhs_norm = 0.0
-        for lhs_emb in chain1[0]:
-            lhs_norm+=torch.norm(lhs_emb)
-
-        lhs_norm/= len(chain1[0])
-
-        chains = [chain1,chain2,chain3]
+        env = preload_env(kbc_path, dataset, dataset_mode, '1_3')
+        part1, part2, part3 = env.parts
+        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
+        kbc, chains = env.kbc, env.chains
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
         = kbc.model.type1_3chain_optimize(chains, kbc.regularizer,\
@@ -623,66 +838,10 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
-
-        kbc,epoch,loss = kbc_model_load(kbc_path)
-
-        raw = dataset.type2_3chain
-
-        type2_3chain = []
-        for i in range(len(raw)):
-            type2_3chain.append(raw[i].data)
-
-
-        part1 = [x['raw_chain'][0] for x in type2_3chain]
-        part2 = [x['raw_chain'][1] for x in type2_3chain]
-        part3 = [x['raw_chain'][2] for x in type2_3chain]
-
-
-        # SAMPLING HACK
-        if len(part1) > 5000:
-            part1 = part1[:5000]
-            part2 = part2[:5000]
-            part3 = part3[:5000]
-
-        target_ids = {}
-
-        for chain_iter in range(len(part1)):
-
-            key = [part1[chain_iter][0],part1[chain_iter][1],\
-                    part2[chain_iter][0],part2[chain_iter][1],\
-                        part3[chain_iter][0],part3[chain_iter][1]
-                ]
-
-            key = '_'.join(str(e) for e in key)
-
-            if key not in target_ids:
-                target_ids[key] = []
-
-            target_ids[key].append(part1[chain_iter][2])
-
-        part1 = np.array(part1)
-        part1 = torch.from_numpy(part1.astype('int64')).cuda()
-
-        part2 = np.array(part2)
-        part2 = torch.from_numpy(part2.astype('int64')).cuda()
-
-        part3 = np.array(part3)
-        part3 = torch.from_numpy(part3.astype('int64')).cuda()
-
-        chain1 = kbc.model.get_full_embeddigns(part1)
-        chain2 = kbc.model.get_full_embeddigns(part2)
-        chain3 = kbc.model.get_full_embeddigns(part3)
-
-
-        print(len(chain1[0]))
-
-        lhs_norm = 0.0
-        for lhs_emb in chain1[0]:
-            lhs_norm+=torch.norm(lhs_emb)
-
-        lhs_norm/= len(chain1[0])
-
-        chains = [chain1,chain2,chain3]
+        env = preload_env(kbc_path, dataset, dataset_mode, '2_3')
+        part1, part2, part3 = env.parts
+        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
+        kbc, chains = env.kbc, env.chains
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
         = kbc.model.type2_3chain_optimize(chains, kbc.regularizer,\
@@ -753,65 +912,10 @@ def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
-
-        kbc,epoch,loss = kbc_model_load(kbc_path)
-
-        raw = dataset.type3_3chain
-
-        type3_3chain = []
-        for i in range(len(raw)):
-            type3_3chain.append(raw[i].data)
-
-
-        part1 = [x['raw_chain'][0] for x in type3_3chain]
-        part2 = [x['raw_chain'][1] for x in type3_3chain]
-        part3 = [x['raw_chain'][2] for x in type3_3chain]
-
-        # SAMPLING HACK
-        if len(part1) > 5000:
-            part1 = part1[:5000]
-            part2 = part2[:5000]
-            part3 = part3[:5000]
-
-        target_ids = {}
-
-        for chain_iter in range(len(part1)):
-
-            key = [part1[chain_iter][0],part1[chain_iter][1],\
-                    part2[chain_iter][0],part2[chain_iter][1],\
-                        part3[chain_iter][0],part3[chain_iter][1]
-                ]
-
-            key = '_'.join(str(e) for e in key)
-
-            if key not in target_ids:
-                target_ids[key] = []
-
-            target_ids[key].append(part2[chain_iter][2])
-
-        part1 = np.array(part1)
-        part1 = torch.from_numpy(part1.astype('int64')).cuda()
-
-        part2 = np.array(part2)
-        part2 = torch.from_numpy(part2.astype('int64')).cuda()
-
-        part3 = np.array(part3)
-        part3 = torch.from_numpy(part3.astype('int64')).cuda()
-
-        chain1 = kbc.model.get_full_embeddigns(part1)
-        chain2 = kbc.model.get_full_embeddigns(part2)
-        chain3 = kbc.model.get_full_embeddigns(part3)
-
-
-        print(len(chain1[0]))
-
-        lhs_norm = 0.0
-        for lhs_emb in chain1[0]:
-            lhs_norm+=torch.norm(lhs_emb)
-
-        lhs_norm/= len(chain1[0])
-
-        chains = [chain1,chain2,chain3]
+        env = preload_env(kbc_path, dataset, dataset_mode, '3_3')
+        part1, part2, part3 = env.parts
+        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
+        kbc, chains = env.kbc, env.chains
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
         = kbc.model.type3_3chain_optimize(chains, kbc.regularizer,\
@@ -882,96 +986,20 @@ def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min'):
 
     try:
-
-        kbc,epoch,loss = kbc_model_load(kbc_path)
-
-        raw = dataset.type4_3chain
-
-        type4_3chain = []
-        for i in range(len(raw)):
-            type4_3chain.append(raw[i].data)
-
-
-        part1 = [x['raw_chain'][0] for x in type4_3chain]
-        part2 = [x['raw_chain'][1] for x in type4_3chain]
-        part3 = [x['raw_chain'][2] for x in type4_3chain]
-
-
-        flattened_part1 =[]
-        flattened_part2 = []
-        flattened_part3 = []
-
-        # [A,r_1,B][C,r_2,B][B, r_3, [D's]]
-
-        for chain_iter in range(len(part3)):
-            for target in part3[chain_iter][2]:
-
-                flattened_part3.append([part3[chain_iter][0],part3[chain_iter][1],target])
-                flattened_part2.append(part2[chain_iter])
-                flattened_part1.append(part1[chain_iter])
-
-
-        part1 = flattened_part1
-        part2 = flattened_part2
-        part3 = flattened_part3
-
-
-        # SAMPLING HACK
-        if len(part1) > 5000:
-            part1 = part1[:5000]
-            part2 = part2[:5000]
-            part3 = part3[:5000]
-
-        target_ids = {}
-
-        for chain_iter in range(len(part1)):
-
-            key = [part1[chain_iter][0],part1[chain_iter][1],\
-                    part2[chain_iter][0],part2[chain_iter][1],\
-                        part3[chain_iter][1],part3[chain_iter][2]
-                ]
-
-            key = '_'.join(str(e) for e in key)
-
-            if key not in target_ids:
-                target_ids[key] = []
-
-            target_ids[key].append(part2[chain_iter][2])
-
-        part1 = np.array(part1)
-        part1 = torch.from_numpy(part1.astype('int64')).cuda()
-
-        part2 = np.array(part2)
-        part2 = torch.from_numpy(part2.astype('int64')).cuda()
-
-        part3 = np.array(part3)
-        part3 = torch.from_numpy(part3.astype('int64')).cuda()
-
-        chain1 = kbc.model.get_full_embeddigns(part1)
-        chain2 = kbc.model.get_full_embeddigns(part2)
-        chain3 = kbc.model.get_full_embeddigns(part3)
-
-
-        print(len(chain1[0]))
-
-        lhs_norm = 0.0
-        for lhs_emb in chain1[0]:
-            lhs_norm+=torch.norm(lhs_emb)
-
-        lhs_norm/= len(chain1[0])
-        chains = [chain1,chain2,chain3]
+        env = preload_env(kbc_path, dataset, dataset_mode, '4_3')
+        part1, part2, part3 = env.parts
+        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
+        kbc, chains = env.kbc, env.chains
 
         obj_guess_raw,closest_map,indices_rankedby_distances \
         = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm=t_norm)
-
 
         guess_norm = 0.0
         for obj_emb in obj_guess_raw:
             guess_norm +=torch.norm(obj_emb)
 
         guess_norm /= len(obj_guess_raw)
-
 
         print("\n")
         print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
@@ -994,7 +1022,6 @@ def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
                 correct+=1.0
 
         print("Accuracy at {}".format(correct/(len(predicted_ids))))
-
 
         average_percentile_rank = 0.0
         for i in range(len(indices_rankedby_distances)):
@@ -1037,6 +1064,7 @@ def exhastive_search_comparison(kbc_path, dataset, dataset_mode, similarity_metr
 
         if QuerDAG.TYPE1_2.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+
         if QuerDAG.TYPE2_2.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
         if QuerDAG.TYPE1_3.value in graph_type:
@@ -1047,6 +1075,9 @@ def exhastive_search_comparison(kbc_path, dataset, dataset_mode, similarity_metr
             obj_guess_optim,closest_map_optim = get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
         if QuerDAG.TYPE4_3.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+
+        # best_candidates = exhastive_objective_search( chains: List, regularizer: Regularizer,candidates: int = 1, max_steps: int = 20, \
+        #                                 step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min', graph_type : str=QuerDAG.TYPE1_2.value):
 
 
 
