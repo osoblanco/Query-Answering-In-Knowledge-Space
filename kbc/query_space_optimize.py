@@ -6,6 +6,9 @@ import torch
 
 import numpy as np
 
+from kbc.exhaustive_objective_search import exhaustive_objective_search
+
+
 from kbc.learn import kbc_model_load
 from kbc.learn import dataset_to_query
 
@@ -469,8 +472,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
 
     return env
 
-
-
 def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess, closest_map = None, None
 
@@ -598,8 +599,6 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
 
     return obj_guess_raw, closest_map
-
-
 
 def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
@@ -834,7 +833,6 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
     return obj_guess_raw,closest_map
 
-
 def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
@@ -1054,17 +1052,11 @@ def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
     return obj_guess_raw,closest_map
 
-
-def exhastive_search_comparison(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min', graph_type = QuerDAG.TYPE1_2.value):
+def exhaustive_search_comparison(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min', graph_type = QuerDAG.TYPE1_2.value):
     try:
-
-        obj_guess_optim,closest_map_optim = exhastive_objective_search(kbc_path, dataset, dataset_mode, \
-        similarity_metric = 'l2', t_norm='min',graph_type = graph_type)
-
 
         if QuerDAG.TYPE1_2.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
-
         if QuerDAG.TYPE2_2.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
         if QuerDAG.TYPE1_3.value in graph_type:
@@ -1076,17 +1068,13 @@ def exhastive_search_comparison(kbc_path, dataset, dataset_mode, similarity_metr
         if QuerDAG.TYPE4_3.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
 
-        # best_candidates = exhastive_objective_search( chains: List, regularizer: Regularizer,candidates: int = 1, max_steps: int = 20, \
-        #                                 step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min', graph_type : str=QuerDAG.TYPE1_2.value):
-
+        best_candidates = exhaustive_objective_search(t_norm, graph_type )
 
 
     except RuntimeError as e:
         print("Exhastive search Completed with error: ",e)
         return None
     return None
-
-
 
 if __name__ == "__main__":
 
@@ -1096,7 +1084,7 @@ if __name__ == "__main__":
     similarity_metrics = ['l2', 'Eculidian', 'cosine']
 
     chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
-    QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All']
+    QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
 
     t_norms = ['min','product']
 
@@ -1165,3 +1153,5 @@ if __name__ == "__main__":
 
         if QuerDAG.TYPE4_3.value == args.chain_type:
             ans =  get_type43_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+        if 'e' == args.chain_type:
+            ans = exhaustive_search_comparison(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm, '1_2')

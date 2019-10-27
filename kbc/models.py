@@ -350,6 +350,7 @@ class KBCModel(nn.Module, ABC):
                 if 'cp' in self.model_type().lower():
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
                 elif 'complex' in self.model_type().lower():
+                    print(self.embeddings[0].weight.data.shape)
                     closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
                 else:
                     print("Choose model type from cp or complex please")
@@ -437,7 +438,6 @@ class KBCModel(nn.Module, ABC):
             return None
 
         return obj_guess, closest_map, indices_rankedby_distances
-
 
     def type1_3chain_optimize_joint(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
@@ -540,7 +540,6 @@ class KBCModel(nn.Module, ABC):
             return None
 
         return obj_guess_1, obj_guess_2, closest_map_1,closest_map_2, indices_rankedby_distances_1,indices_rankedby_distances_2
-
 
     def type1_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
@@ -681,7 +680,6 @@ class KBCModel(nn.Module, ABC):
             return None
 
         return obj_guess,closest_map,indices_rankedby_distances
-
 
     def type3_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
@@ -824,8 +822,6 @@ class KBCModel(nn.Module, ABC):
 
         return obj_guess,closest_map,indices_rankedby_distances
 
-
-
     def __expanded_pairwise_distances__(self,x, y=None):
         '''
         Input: x is a Nxd matrix
@@ -926,8 +922,6 @@ class KBCModel(nn.Module, ABC):
             return None
 
         return closest
-
-
 
 
 
