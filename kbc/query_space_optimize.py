@@ -17,66 +17,9 @@ from kbc.chain_dataset import Chain
 from kbc.utils import QuerDAG
 from kbc.utils import DynKBCSingleton
 
-def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
-    obj_guess_raw, closest_map = None, None
-    try:
-
-        kbc,epoch,loss = kbc_model_load(kbc_path)
-        queries,target_ids = dataset_to_query(kbc.model,dataset,dataset_mode)
-
-        print(queries[0].dim())
-
-        print(len(queries[0]))
-
-        lhs_norm = 0.0
-        for lhs_emb in queries[0]:
-            lhs_norm+=torch.norm(lhs_emb)
-
-        lhs_norm/= len(queries[0])
-
-        obj_guess_raw, closest_map, indices_rankedby_distances = kbc.model.projected_gradient_descent(queries, \
-                                            kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
-
-        guess_norm = 0.0
-        for obj_emb in obj_guess_raw:
-            guess_norm+=torch.norm(obj_emb)
-
-        guess_norm/= len(obj_guess_raw)
-        print("\n")
-        print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
-
-        predicted_ids = [x[0] for x in closest_map]
-
-        correct = 0.0
-
-        for i in range(len(predicted_ids)):
-            if predicted_ids[i] in target_ids[i]:
-                # print(predicted_ids[i],target_ids[i])
-                correct+=1.0
-
-        print("Accuracy at {}".format(correct/(len(target_ids))))
-
-
-        average_percentile_rank = 0.0
-        for i in range(len(indices_rankedby_distances)):
-            correct_ans_indices = [(indices_rankedby_distances[i]== one_target).nonzero()[0].squeeze() for one_target in target_ids[i]]
-
-            correct_ans_index = min(correct_ans_indices)
-
-            if correct_ans_index >1000:
-                correct_ans_index = 1000
-
-            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
-
-        average_percentile_rank /= len(indices_rankedby_distances)
-
-        print("Average Percentile Ranks is: ", average_percentile_rank)
-
-    except RuntimeError as e:
-        print("Cannot Optimise the Query space with error: {}".format(str(e)))
-        return None, None
-
-    return obj_guess_raw, closest_map
+from metrics import average_percentile_rank
+from metrics import norm_comparison
+from metrics import hits_at_k
 
 def preload_env(kbc_path, dataset, dataset_mode, graph_type):
 
@@ -137,7 +80,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             chain2 = kbc.model.get_full_embeddigns(part2)
 
 
-            print(len(chain1[0]))
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -159,6 +101,11 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
 
             part1 = [x['raw_chain'][0] for x in type2_2chain]
             part2 = [x['raw_chain'][1] for x in type2_2chain]
+
+            # SAMPLING HACK
+            if len(part1) > 5000:
+                part1 = part1[:5000]
+                part2 = part2[:5000]
 
             target_ids = {}
 
@@ -182,7 +129,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
 
-            print(len(chain1[0]))
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -258,7 +204,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             chain2 = kbc.model.get_full_embeddigns(part2)
             chain3 = kbc.model.get_full_embeddigns(part3)
 
-            print(len(chain1[0]))
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -316,8 +261,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             chain3 = kbc.model.get_full_embeddigns(part3)
 
 
-            print(len(chain1[0]))
-
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
                 lhs_norm+=torch.norm(lhs_emb)
@@ -373,8 +316,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             chain2 = kbc.model.get_full_embeddigns(part2)
             chain3 = kbc.model.get_full_embeddigns(part3)
 
-
-            print(len(chain1[0]))
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -453,8 +394,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             chain3 = kbc.model.get_full_embeddigns(part3)
 
 
-            print(len(chain1[0]))
-
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
                 lhs_norm+=torch.norm(lhs_emb)
@@ -472,6 +411,52 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
 
     return env
 
+
+def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
+    obj_guess_raw, closest_map = None, None
+    try:
+
+        kbc,epoch,loss = kbc_model_load(kbc_path)
+        queries,target_ids = dataset_to_query(kbc.model,dataset,dataset_mode)
+
+
+        obj_guess_raw, closest_map, indices_rankedby_distances = kbc.model.projected_gradient_descent(queries, \
+                                            kbc.regularizer,max_steps=1000,similarity_metric=similarity_metric)
+
+        lhs_norm,  guess_norm =  norm_comparison(queries, obj_guess_raw)
+
+
+        predicted_ids = [x[0] for x in closest_map]
+
+        correct = 0.0
+        for i in range(len(predicted_ids)):
+            if predicted_ids[i] in target_ids[i]:
+                correct+=1.0
+
+        print("Accuracy at {}".format(correct/(len(target_ids))))
+
+
+        average_percentile_rank = 0.0
+        for i in range(len(indices_rankedby_distances)):
+            correct_ans_indices = [(indices_rankedby_distances[i]== one_target).nonzero()[0].squeeze() for one_target in target_ids[i]]
+
+            correct_ans_index = min(correct_ans_indices)
+
+            if correct_ans_index >1000:
+                correct_ans_index = 1000
+
+            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
+
+        average_percentile_rank /= len(indices_rankedby_distances)
+
+        print("Average Percentile Ranks is: ", average_percentile_rank)
+
+    except RuntimeError as e:
+        print("Cannot Optimise the Query space with error: {}".format(str(e)))
+        return None, None
+
+    return obj_guess_raw, closest_map
+
 def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess, closest_map = None, None
 
@@ -485,49 +470,18 @@ def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         = kbc.model.type1_2chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
-        guess_norm = 0.0
-        for obj_emb in obj_guess_raw:
-            guess_norm+=torch.norm(obj_emb)
+        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
 
-        guess_norm/= len(obj_guess_raw)
-        print("\n")
-        print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
-
-        predicted_ids = [x[0] for x in closest_map]
-
-        correct = 0.0
-
-        for i in range(len(predicted_ids)):
-
-            key = [part1[i][0],part1[i][1],part2[i][1],part2[i][2]]
-            key = '_'.join(str(e.item()) for e in key)
-
-            if predicted_ids[i] in target_ids[key]:
-                # print(predicted_ids[i],target_ids[i])
-                correct+=1.0
-
-        print("Accuracy at {}".format(correct/(len(predicted_ids))))
-
-
-        average_percentile_rank = 0.0
+        keys = []
         for i in range(len(indices_rankedby_distances)):
 
             key = [part1[i][0],part1[i][1],part2[i][1],part2[i][2]]
             key = '_'.join(str(e.item()) for e in key)
-            targets = target_ids[key]
+            keys.append(key)
 
-            correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
+        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
 
-            correct_ans_index = min(correct_ans_indices)
-
-            if correct_ans_index >1000:
-                correct_ans_index = 1000
-
-            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
-
-        average_percentile_rank /= len(indices_rankedby_distances)
-
-        print("Average Percentile Ranks is: ", average_percentile_rank)
+        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
 
     except RuntimeError as e:
@@ -549,50 +503,18 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         = kbc.model.type2_2chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
+        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
 
-        guess_norm = 0.0
-        for obj_emb in obj_guess_raw:
-            guess_norm+=torch.norm(obj_emb)
-
-        guess_norm/= len(obj_guess_raw)
-        print("\n")
-        print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
-
-        predicted_ids = [x[0] for x in closest_map]
-
-        correct = 0.0
-
-        for i in range(len(predicted_ids)):
-
-            key = [part1[i][0],part1[i][1],part2[i][0],part1[i][1]]
-            key = '_'.join(str(e.item()) for e in key)
-
-            if predicted_ids[i] in target_ids[key]:
-                # print(predicted_ids[i],target_ids[i])
-                correct+=1.0
-
-        print("Accuracy at {}".format(correct/(len(predicted_ids))))
-
-        average_percentile_rank = 0.0
+        keys = []
         for i in range(len(indices_rankedby_distances)):
 
             key = [part1[i][0],part1[i][1],part2[i][0],part1[i][1]]
             key = '_'.join(str(e.item()) for e in key)
-            targets = target_ids[key]
+            keys.append(key)
 
-            correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
+        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
 
-            correct_ans_index = min(correct_ans_indices)
-
-            if correct_ans_index >1000:
-                correct_ans_index = 1000
-
-            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
-
-        average_percentile_rank /= len(indices_rankedby_distances)
-
-        print("Average Percentile Ranks is: ", average_percentile_rank)
-
+        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
     except RuntimeError as e:
         print(e)
@@ -673,7 +595,6 @@ def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similari
         chain3 = kbc.model.get_full_embeddigns(part3)
 
 
-        print(len(chain1[0]))
 
         lhs_norm = 0.0
         for lhs_emb in chain1[0]:
@@ -771,38 +692,9 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         = kbc.model.type1_3chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
+        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
 
-        guess_norm = 0.0
-        for obj_emb in obj_guess_raw:
-            guess_norm +=torch.norm(obj_emb)
-
-        guess_norm /= len(obj_guess_raw)
-
-
-        print("\n")
-        print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
-
-        predicted_ids = [x[0] for x in closest_map]
-
-        correct = 0.0
-
-        for i in range(len(predicted_ids)):
-
-            key = [part1[i][0],part1[i][1],\
-                    part2[i][0],part2[i][1],\
-                        part3[i][1],part3[i][2]
-                ]
-
-            key = '_'.join(str(e.item()) for e in key)
-
-            if predicted_ids[i] in target_ids[key]:
-                # print(predicted_ids[i],target_ids[i])
-                correct+=1.0
-
-        print("Accuracy at {}".format(correct/(len(predicted_ids))))
-
-
-        average_percentile_rank = 0.0
+        keys = []
         for i in range(len(indices_rankedby_distances)):
 
             key = [part1[i][0],part1[i][1],\
@@ -811,21 +703,11 @@ def get_type13_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
                 ]
 
             key = '_'.join(str(e.item()) for e in key)
-            targets = target_ids[key]
+            keys.append(key)
 
-            correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
+        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
 
-            correct_ans_index = min(correct_ans_indices)
-
-
-            if correct_ans_index >1000:
-                correct_ans_index = 1000
-
-            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
-
-        average_percentile_rank /= len(indices_rankedby_distances)
-
-        print("Average Percentile Ranks is: ", average_percentile_rank)
+        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
 
     except RuntimeError as e:
@@ -846,37 +728,9 @@ def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
-        guess_norm = 0.0
-        for obj_emb in obj_guess_raw:
-            guess_norm +=torch.norm(obj_emb)
+        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
 
-        guess_norm /= len(obj_guess_raw)
-
-
-        print("\n")
-        print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
-
-        predicted_ids = [x[0] for x in closest_map]
-
-        correct = 0.0
-
-        for i in range(len(predicted_ids)):
-
-            key = [part1[i][0],part1[i][1],\
-                    part2[i][0],part2[i][1],\
-                        part3[i][0],part3[i][1]
-                ]
-
-            key = '_'.join(str(e.item()) for e in key)
-
-            if predicted_ids[i] in target_ids[key]:
-                # print(predicted_ids[i],target_ids[i])
-                correct+=1.0
-
-        print("Accuracy at {}".format(correct/(len(predicted_ids))))
-
-
-        average_percentile_rank = 0.0
+        keys = []
         for i in range(len(indices_rankedby_distances)):
 
             key = [part1[i][0],part1[i][1],\
@@ -885,22 +739,11 @@ def get_type23_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
                 ]
 
             key = '_'.join(str(e.item()) for e in key)
-            targets = target_ids[key]
+            keys.append(key)
 
-            correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
+        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
 
-            correct_ans_index = min(correct_ans_indices)
-
-
-            if correct_ans_index >1000:
-                correct_ans_index = 1000
-
-            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
-
-        average_percentile_rank /= len(indices_rankedby_distances)
-
-        print("Average Percentile Ranks is: ", average_percentile_rank)
-
+        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
     except RuntimeError as e:
         print(e)
@@ -920,37 +763,9 @@ def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
 
 
-        guess_norm = 0.0
-        for obj_emb in obj_guess_raw:
-            guess_norm +=torch.norm(obj_emb)
+        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
 
-        guess_norm /= len(obj_guess_raw)
-
-
-        print("\n")
-        print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
-
-        predicted_ids = [x[0] for x in closest_map]
-
-        correct = 0.0
-
-        for i in range(len(predicted_ids)):
-
-            key = [part1[i][0],part1[i][1],\
-                    part2[i][0],part2[i][1],\
-                        part3[i][0],part3[i][1]
-                ]
-
-            key = '_'.join(str(e.item()) for e in key)
-
-            if predicted_ids[i] in target_ids[key]:
-                # print(predicted_ids[i],target_ids[i])
-                correct+=1.0
-
-        print("Accuracy at {}".format(correct/(len(predicted_ids))))
-
-
-        average_percentile_rank = 0.0
+        keys = []
         for i in range(len(indices_rankedby_distances)):
 
             key = [part1[i][0],part1[i][1],\
@@ -959,22 +774,11 @@ def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
                 ]
 
             key = '_'.join(str(e.item()) for e in key)
-            targets = target_ids[key]
+            keys.append(key)
 
-            correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
+        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
 
-            correct_ans_index = min(correct_ans_indices)
-
-
-            if correct_ans_index >1000:
-                correct_ans_index = 1000
-
-            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
-
-        average_percentile_rank /= len(indices_rankedby_distances)
-
-        print("Average Percentile Ranks is: ", average_percentile_rank)
-
+        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
     except RuntimeError as e:
         print(e)
@@ -993,35 +797,9 @@ def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,\
         max_steps=1000,similarity_metric=similarity_metric, t_norm=t_norm)
 
-        guess_norm = 0.0
-        for obj_emb in obj_guess_raw:
-            guess_norm +=torch.norm(obj_emb)
+        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
 
-        guess_norm /= len(obj_guess_raw)
-
-        print("\n")
-        print("The average norm of the trained vectors is {}, while optimized vectors have {}".format(lhs_norm,guess_norm))
-
-        predicted_ids = [x[0] for x in closest_map]
-
-        correct = 0.0
-
-        for i in range(len(predicted_ids)):
-
-            key = [part1[i][0],part1[i][1],\
-                    part2[i][0],part2[i][1],\
-                        part3[i][1],part3[i][2]
-                ]
-
-            key = '_'.join(str(e.item()) for e in key)
-
-            if predicted_ids[i] in target_ids[key]:
-                # print(predicted_ids[i],target_ids[i])
-                correct+=1.0
-
-        print("Accuracy at {}".format(correct/(len(predicted_ids))))
-
-        average_percentile_rank = 0.0
+        keys = []
         for i in range(len(indices_rankedby_distances)):
 
             key = [part1[i][0],part1[i][1],\
@@ -1030,22 +808,11 @@ def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
                 ]
 
             key = '_'.join(str(e.item()) for e in key)
-            targets = target_ids[key]
+            keys.append(key)
 
-            correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
+        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
 
-            correct_ans_index = min(correct_ans_indices)
-
-
-            if correct_ans_index >1000:
-                correct_ans_index = 1000
-
-            average_percentile_rank += 1.0 - float(correct_ans_index) / 1000
-
-        average_percentile_rank /= len(indices_rankedby_distances)
-
-        print("Average Percentile Ranks is: ", average_percentile_rank)
-
+        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
     except RuntimeError as e:
         print(e)
@@ -1074,7 +841,7 @@ def exhaustive_search_comparison(kbc_path, dataset, dataset_mode, similarity_met
     except RuntimeError as e:
         print("Exhastive search Completed with error: ",e)
         return None
-    return None
+    return best_candidates
 
 if __name__ == "__main__":
 

@@ -12,13 +12,11 @@ from torch import nn
 from torch import optim
 from kbc.regularizers import Regularizer
 import tqdm
-import enum
 
 import gc
 
 from kbc.utils import QuerDAG
-
-import matplotlib.pyplot as plt
+from kbc.utils import check_gpu
 
 class KBCModel(nn.Module, ABC):
     @abstractmethod
@@ -159,7 +157,7 @@ class KBCModel(nn.Module, ABC):
 
         return obj_guess, closest_map, indices_rankedby_distances
 
-    def __get_chains__(self, chains:List , graph_type:str =QuerDAG.TYPE1_2.value):
+    def __get_chains__(self, chains:List , graph_type:str = QuerDAG.TYPE1_2.value):
         try:
             if '2' in graph_type[-1]:
                 chain1, chain2 = chains
@@ -168,18 +166,26 @@ class KBCModel(nn.Module, ABC):
 
             if QuerDAG.TYPE1_2.value in graph_type:
                 try:
-                    lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-                    rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+                    print(check_gpu())
 
-                    rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-                    rhs_2 = chain2[2].clone().detach().requires_grad_(False).to(chain2[2].device)
+                    lhs_1 = chain1[0].requires_grad_(False).to(chain1[0].device)
+                    rel_1 = chain1[1].requires_grad_(False).to(chain1[1].device)
+
+                    rel_2 = chain2[1].requires_grad_(False).to(chain2[1].device)
+                    rhs_2 = chain2[2].requires_grad_(False).to(chain2[2].device)
+
+
                 except:
                     print("Cuda Memory not enough trying a hack")
+                    print("_____________________________________________")
+
+                    print(check_gpu())
+
                     lhs_1 = chain1[0]
                     rel_1 = chain1[1]
 
-                    lhs_2 = chain2[1]
-                    rel_2 = chain2[2]
+                    rel_2 = chain2[1]
+                    rhs_2 = chain2[2]
 
                 raw_chain = [lhs_1,rel_1,rel_2,rhs_2]
 
@@ -312,14 +318,15 @@ class KBCModel(nn.Module, ABC):
                     l_reg_2 = regularizer.forward((obj_guess, rel_2, rhs_2))
                     score_2 = -(self.score_emb(obj_guess, rel_2, rhs_2))
 
+
                     if 'min' in t_norm.lower():
                         loss = torch.min(score_1,score_2) - (-l_reg_1 - l_reg_2)
                     elif 'prod' in t_norm.lower():
                         loss = (score_1 +l_reg_1) * (score_2 + l_reg_2)
 
-                    optimizer.zero_grad()
 
-                    loss.backward()
+                    optimizer.zero_grad()
+                    loss.backward(retain_graph=True)
                     optimizer.step()
 
                     i+=1
@@ -613,7 +620,7 @@ class KBCModel(nn.Module, ABC):
                                     max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
         try:
 
-            lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type  =QuerDAG.TYPE2_3.value)
+            lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type  = QuerDAG.TYPE2_3.value)
             obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
             obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
 
@@ -833,9 +840,9 @@ class KBCModel(nn.Module, ABC):
 
         dist = None
         try:
-            x_norm = (x**2).sum(1).view(-1, 1)
+            x_norm = (torch.pow(x, 2)).sum(1).view(-1, 1)
             if y is not None:
-                y_norm = (y**2).sum(1).view(1, -1)
+                y_norm = (torch.pow(y, 2)).sum(1).view(1, -1)
             else:
                 y = x
                 y_norm = x_norm.view(1, -1)

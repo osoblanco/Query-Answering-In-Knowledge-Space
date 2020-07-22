@@ -7,6 +7,7 @@
 import pkg_resources
 import os
 import errno
+import shutil
 from pathlib import Path
 import pickle
 
@@ -45,6 +46,10 @@ def prepare_dataset(path, name):
     print("{} entities and {} relations".format(len(entities), len(relations)))
     n_relations = len(relations)
     n_entities = len(entities)
+
+    if os.path.exists(os.path.join(DATA_PATH, name)):
+        shutil.rmtree(os.path.join(DATA_PATH, name))
+
     os.makedirs(os.path.join(DATA_PATH, name))
     # write ent to id / rel to id
     for (dic, f) in zip([entities_to_id, relations_to_id], ['ent_id', 'rel_id']):

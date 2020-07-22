@@ -434,7 +434,7 @@ def load_chain_data(data_path):
             data= pickle.load(f)
     except RuntimeError as e:
         print(e)
-        return None
+        return data
     return data
 
 
