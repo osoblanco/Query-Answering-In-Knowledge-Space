@@ -80,7 +80,6 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             chain2 = kbc.model.get_full_embeddigns(part2)
 
 
-
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
                 lhs_norm+=torch.norm(lhs_emb)

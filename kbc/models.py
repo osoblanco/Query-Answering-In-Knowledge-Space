@@ -7,9 +7,12 @@
 
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict
+
 import torch
 from torch import nn
 from torch import optim
+from torch.autograd import Variable
+
 from kbc.regularizers import Regularizer
 import tqdm
 
@@ -168,14 +171,14 @@ class KBCModel(nn.Module, ABC):
                 try:
                     print(check_gpu())
 
-                    lhs_1 = chain1[0].requires_grad_(False).to(chain1[0].device)
-                    rel_1 = chain1[1].requires_grad_(False).to(chain1[1].device)
+                    lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
+                    rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
 
-                    rel_2 = chain2[1].requires_grad_(False).to(chain2[1].device)
-                    rhs_2 = chain2[2].requires_grad_(False).to(chain2[2].device)
+                    rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+                    rhs_2 = chain2[2].clone().detach().requires_grad_(False).to(chain2[2].device)
 
 
-                except:
+                except RuntimeError as e:
                     print("Cuda Memory not enough trying a hack")
                     print("_____________________________________________")
 
@@ -324,9 +327,9 @@ class KBCModel(nn.Module, ABC):
                     elif 'prod' in t_norm.lower():
                         loss = (score_1 +l_reg_1) * (score_2 + l_reg_2)
 
-
                     optimizer.zero_grad()
-                    loss.backward(retain_graph=True)
+
+                    loss.backward()
                     optimizer.step()
 
                     i+=1
@@ -337,8 +340,6 @@ class KBCModel(nn.Module, ABC):
 
                 if i != max_steps:
                     bar.update(max_steps-i +1)
-
-
                     print("\n\n Search converged early after {} iterations".format(i))
 
 

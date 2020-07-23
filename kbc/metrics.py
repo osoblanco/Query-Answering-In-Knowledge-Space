@@ -4,7 +4,8 @@ import torch
 def norm_comparison(queries, obj_guess_raw):
     lhs_norm,  guess_norm = None, None
     try:
-
+        if not torch.is_tensor(queries):
+            queries = queries[0]
         if len(list(queries.shape))  == 0:
             lhs_norm = queries
         else:
@@ -83,7 +84,7 @@ def average_percentile_rank(indices_rankedby_distances,target_ids, keys, thresho
             correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
 
             correct_ans_index = min(correct_ans_indices)
-            print(len(indices_rankedby_distances[i]))
+            # print(len(indices_rankedby_distances[i]))
 
             if correct_ans_index > threshold:
                 correct_ans_index = threshold
