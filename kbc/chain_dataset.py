@@ -23,6 +23,7 @@ class ChaineDataset():
 
         self.full_missing = {**self.rhs_missing, **self.lhs_missing}
 
+        self.test_set = set((tuple(triple) for triple in self.raw_data.data['test']))
 
         self.neighbour_relations = {}
         self.reverse_maps = {}
@@ -85,10 +86,10 @@ class ChaineDataset():
     def __type1_2chains__(self):
 
         try:
-            for chain_start in tqdm(self.rhs_missing):
+            for test_triple in tqdm(self.raw_data.data['test']):
 
-                test_lhs_chain_1 = chain_start
-                test_answers_chain_1 = self.rhs_missing[chain_start]
+                test_lhs_chain_1 = (test_triple[0], test_triple[1])
+                test_answers_chain_1 = [test_triple[2]]
 
                 potential_chain_cont = [(x, self.neighbour_relations[x]) for x in test_answers_chain_1]
 
@@ -143,8 +144,17 @@ class ChaineDataset():
 
                 common_lhs = list(itertools.combinations(common_lhs, 2))
 
+                common_lhs_clean = []
+                for segments in common_lhs:
+                    for s in segments:
+                        if s + (ans,) in self.test_set:
+                            common_lhs_clean.append(segments)
+                            break
 
-                raw_chains = [ [ list(x[0])+[ans], list(x[1])+[ans]]  for x in common_lhs]
+                if len(common_lhs_clean) == 0:
+                    continue
+
+                raw_chains = [ [ list(x[0])+[ans], list(x[1])+[ans]]  for x in common_lhs_clean]
 
 
                 for chain in raw_chains:
@@ -247,9 +257,19 @@ class ChaineDataset():
 
                 common_lhs = list(itertools.combinations(common_lhs, 3))
 
+                common_lhs_clean = []
+                for segments in common_lhs:
+                    for s in segments:
+                        if s + (ans,) in self.test_set:
+                            common_lhs_clean.append(segments)
+                            break
+
+                if len(common_lhs_clean) == 0:
+                    continue
+
 
                 raw_chains = [ [ list(x[0])+[ans], list(x[1])+[ans], list(x[2]) + [ans]]
-                              for x in common_lhs]
+                              for x in common_lhs_clean]
 
 
                 for chain in raw_chains:

@@ -84,10 +84,3 @@ class DynKBCSingleton:
             DynKBCSingleton.target_ids = target_ids
             DynKBCSingleton.lhs_norm = lhs_norm
             DynKBCSingleton.__instance = self
-
-
-#_____________________________________________
-import numpy as np
-import scipy.stats as stats
-from sklearn.metrics import roc_auc_score
-import random
