@@ -6,6 +6,61 @@ import sys
 import time
 import xml.etree.ElementTree
 
+def create_instructions(chains):
+    instructions = []
+    try:
+
+        prev_start = None
+        prev_end = None
+
+        path_stack = []
+        start_flag = True
+        for chain_ind, chain in enumerate(chains):
+
+            if start_flag:
+                prev_end = chain[-1]
+                start_flag = False
+                continue
+
+
+            if prev_end == chain[0]:
+                instructions.append(f"hop_{chain_ind-1}_{chain_ind}")
+                prev_end = chain[-1]
+                prev_start = chain[0]
+
+            elif prev_end == chain[-1]:
+
+                prev_start = chain[0]
+                prev_end = chain[-1]
+
+                instructions.append(f"intersect_{chain_ind-1}_{chain_ind}")
+            else:
+                path_stack.append(([prev_start, prev_end],chain_ind-1))
+                prev_start = chain[0]
+                prev_end = chain[-1]
+                start_flag = False
+                continue
+
+            if len(path_stack) > 0:
+
+                path_prev_start = path_stack[-1][0][0]
+                path_prev_end = path_stack[-1][0][-1]
+
+                if path_prev_end == chain[-1]:
+
+                    prev_start = chain[0]
+                    prev_end = chain[-1]
+
+                    instructions.append(f"intersect_{path_stack[-1][1]}_{chain_ind}")
+                    path_stack.pop()
+                    continue
+
+
+    except RuntimeError as e:
+        print(e)
+        return instructions
+    return instructions
+
 def extract(elem, tag, drop_s):
   text = elem.find(tag).text
   if drop_s not in text: raise Exception(text)
@@ -64,16 +119,18 @@ class DynKBCSingleton:
         return DynKBCSingleton.__instance
 
 
-    def set_attr(self, kbc, chains, parts, target_ids, lhs_norm):
+    def set_attr(self, kbc, chains, parts, target_ids, chain_instructions, graph_type, lhs_norm ):
         self.kbc = kbc
         self.chains = chains
         self.parts = parts
         self.target_ids = target_ids
         self.lhs_norm = lhs_norm
+        self.chain_instructions = chain_instructions
+        self.graph_type = graph_type
         self.__instance = self
 
     def __init__(self,kbc = None, chains = None , parts = None, \
-    target_ids = None, lhs_norm = None):
+    target_ids = None, lhs_norm = None, chain_instructions = None, graph_type = None):
         """ Virtually private constructor. """
         if DynKBCSingleton.__instance != None:
             raise Exception("This class is a singleton!")
@@ -83,11 +140,6 @@ class DynKBCSingleton:
             DynKBCSingleton.parts = parts
             DynKBCSingleton.target_ids = target_ids
             DynKBCSingleton.lhs_norm = lhs_norm
+            DynKBCSingleton.graph_type = graph_type
+            DynKBCSingleton.chain_instructions = chain_instructions
             DynKBCSingleton.__instance = self
-
-
-#_____________________________________________
-import numpy as np
-import scipy.stats as stats
-from sklearn.metrics import roc_auc_score
-import random

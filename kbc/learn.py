@@ -73,13 +73,13 @@ def train_kbc(KBC_optimizer, dataset, args):
 							'regularizer':KBC_optimizer.regularizer,
 							'optim_method':KBC_optimizer.optimizer ,
 							'batch_size':KBC_optimizer.batch_size,
-	        				'model_state_dict': KBC_optimizer.model.state_dict(),
-				            'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
-	        				'loss': cur_loss},
+							'model_state_dict': KBC_optimizer.model.state_dict(),
+							'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
+							'loss': cur_loss},
 							 os.path.join(model_dir, '{}-model-epoch-{}-{}.pt'.format(args.dataset,epoch,timestamp)))
 
 				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
-  					json.dump(vars(args), json_file)
+					json.dump(vars(args), json_file)
 
 
 
@@ -142,6 +142,7 @@ def kbc_model_load(model_path):
 		batch_size = checkpoint['batch_size']
 
 		KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, batch_size)
+
 
 		KBC_optimizer.model.load_state_dict(checkpoint['model_state_dict'])
 		KBC_optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
