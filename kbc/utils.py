@@ -119,18 +119,19 @@ class DynKBCSingleton:
         return DynKBCSingleton.__instance
 
 
-    def set_attr(self, kbc, chains, parts, target_ids, chain_instructions, graph_type, lhs_norm ):
+    def set_attr(self, kbc, chains, parts, target_ids, keys, chain_instructions, graph_type, lhs_norm ):
         self.kbc = kbc
         self.chains = chains
         self.parts = parts
         self.target_ids = target_ids
+        self.keys = keys
         self.lhs_norm = lhs_norm
         self.chain_instructions = chain_instructions
         self.graph_type = graph_type
         self.__instance = self
 
     def __init__(self,kbc = None, chains = None , parts = None, \
-    target_ids = None, lhs_norm = None, chain_instructions = None, graph_type = None):
+    target_ids = None, keys = None, lhs_norm = None, chain_instructions = None, graph_type = None):
         """ Virtually private constructor. """
         if DynKBCSingleton.__instance != None:
             raise Exception("This class is a singleton!")
@@ -139,6 +140,8 @@ class DynKBCSingleton:
             DynKBCSingleton.chains = chains
             DynKBCSingleton.parts = parts
             DynKBCSingleton.target_ids = target_ids
+            DynKBCSingleton.keys = keys
+
             DynKBCSingleton.lhs_norm = lhs_norm
             DynKBCSingleton.graph_type = graph_type
             DynKBCSingleton.chain_instructions = chain_instructions
