@@ -82,22 +82,16 @@ def hits_at_k(indices_rankedby_distances, target_ids, keys,  hits = [1]):
 
             key = keys[i]
             predictions = indices_rankedby_distances[i]
-            targets = np.asarray(target_ids[key], dtype = np.int32)
+            targets = torch.tensor(target_ids[key], dtype=torch.long)
+            num_targets = targets.shape[0]
 
-            #Find filter indices
-            indices_aranged =  torch.nonzero(predictions[..., None] == torch.tensor(targets, dtype = torch.long))
+            # Find filter indices
+            pred_ans_indices, _ = torch.nonzero(predictions[..., None] == targets, as_tuple=True)
+            hits_results = torch.zeros_like(correct)
+            ranking = pred_ans_indices - num_targets + 1
 
-            mask = torch.zeros(indices_aranged.shape[0], dtype=torch.long)
-            pred_ans_indices = indices_aranged.gather(1, mask.view(-1,1)).flatten()
-
-            hits_results = []
-
-            for k in hits:
-                ranking = pred_ans_indices - k
-                query_correct = torch.mean((ranking < 0).to(torch.float)).item()
-                hits_results.append(query_correct)
-
-            hits_results = torch.tensor(hits_results)
+            for j, k in enumerate(hits):
+                hits_results[j] = (ranking < k).float().mean()
 
             correct += hits_results
 
