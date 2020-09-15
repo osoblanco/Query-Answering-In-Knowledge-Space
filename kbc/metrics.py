@@ -1,4 +1,7 @@
 import torch
+import numpy as np
+from tqdm import tqdm
+import time
 
 
 def norm_comparison(queries, obj_guess_raw):
@@ -33,23 +36,75 @@ def norm_comparison(queries, obj_guess_raw):
     return lhs_norm,  guess_norm
 
 
+
+def exclude_answers(prediction, filter_list):
+
+    #Find filter indices
+    # start = time.time()
+    indices_aranged =  torch.nonzero(prediction[..., None] == torch.tensor(filter_list))
+    # end1 = start - time.time()
+    # print(f"time p1 {end1}")
+    mask = torch.zeros(indices_aranged.shape[0], dtype=torch.long)
+
+    # end2 = start - time.time()
+    # print(f"time p2 {end2}")
+
+    remove_indices = indices_aranged.gather(1, mask.view(-1,1)).flatten()
+
+    # end3 = start - time.time()
+    # print(f"time p3 {end3}")
+
+    full_indices = torch.arange(prediction.shape[0])
+
+    # end4 = start - time.time()
+    # print(f"time p4 {end4}")
+
+
+    remaining_indices = torch.tensor(np.setdiff1d(full_indices, remove_indices))
+
+    # end5 = start - time.time()
+    # print(f"time p5 {end5}")
+
+    return prediction[remaining_indices]
+
+
+
 def hits_at_k(indices_rankedby_distances, target_ids, keys,  hits = [1]):
 
     hits_k = {}
     try:
-        for k in hits:
-            predicted_ids = [x[:k] for x in indices_rankedby_distances]
-            correct = 0.0
-            for i in range(len(predicted_ids)):
 
-                key = keys[i]
+        correct = torch.zeros(len(hits))
 
-                if check_answer(predicted_ids[i], target_ids[key]):
-                    correct += 1.0
+        nb_queries = len(indices_rankedby_distances)
+
+        for i in tqdm(range(nb_queries)):
+
+            key = keys[i]
+            predictions = indices_rankedby_distances[i]
+            targets = np.asarray(target_ids[key], dtype = np.int32)
+
+            #Find filter indices
+            indices_aranged =  torch.nonzero(predictions[..., None] == torch.tensor(targets, dtype = torch.long))
+
+            mask = torch.zeros(indices_aranged.shape[0], dtype=torch.long)
+            pred_ans_indices = indices_aranged.gather(1, mask.view(-1,1)).flatten()
+
+            hits_results = []
+
+            for k in hits:
+                ranking = pred_ans_indices - k
+                query_correct = torch.mean((ranking < 0).to(torch.float)).item()
+                hits_results.append(query_correct)
+
+            hits_results = torch.tensor(hits_results)
+
+            correct += hits_results
 
 
-            hits_k[f"Hits@{k}"] = correct/(len(predicted_ids))
-            print("Hits@{} at {}".format(k,correct/(len(predicted_ids))))
+        for ind, k in enumerate(hits):
+            hits_k[f"Hits@{k}"] = correct[ind]/float(nb_queries)
+            print("Hits@{} at {}".format(k,correct[ind]/float(nb_queries)))
 
     except RuntimeError as e:
         print("Cannot calculate Hits@K with error: ", e)
@@ -84,6 +139,7 @@ def average_percentile_rank(indices_rankedby_distances,target_ids, keys, thresho
             correct_ans_indices = [(indices_rankedby_distances[i] == one_target).nonzero()[0].squeeze() for one_target in targets]
 
             correct_ans_index = min(correct_ans_indices)
+            # print(correct_ans_index)
             # print(len(indices_rankedby_distances[i]))
 
             if correct_ans_index > threshold:

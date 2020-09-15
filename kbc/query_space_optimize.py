@@ -402,7 +402,9 @@ def preload_env(kbc_path, dataset, dataset_mode, graph_type):
             parts = [part1,part2,part3]
 
 
-        env.set_attr(kbc,chains,parts,target_ids, lhs_norm)
+        env.set_attr(kbc,chains,parts,target_ids, None, None , graph_type, lhs_norm)
+        # env.set_attr(kbc,chains,parts,target_ids, keys, chain_instructions , graph_type, lhs_norm)
+
 
     except RuntimeError as e:
         print("Cannot preload environment with error: ", str(e))

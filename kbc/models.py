@@ -847,26 +847,35 @@ class KBCModel(nn.Module, ABC):
 			arg2: Optional[Tensor],
 			candidates: int = 5) -> Tuple[Tensor, Tensor]:
 
-		assert (arg1 is None) ^ (arg2 is None)
 
-		batch_size, embedding_size = rel.shape[0], rel.shape[1]
+		z_scores, z_emb, z_indices = None, None , None
 
-		# [B, N]
+		try:
+			assert (arg1 is None) ^ (arg2 is None)
 
-		# scores_sp = (s, p, ?)
+			batch_size, embedding_size = rel.shape[0], rel.shape[1]
 
-		scores_sp, scores_po = self.candidates_score(rel, arg1, arg2)
-		scores = scores_sp if arg2 is None else scores_po
+			# [B, N]
 
-		k = min(candidates, scores.shape[1])
+			# scores_sp = (s, p, ?)
 
-		# [B, K], [B, K]
-		z_scores, z_indices = torch.topk(scores, k=k, dim=1)
-		# [B, K, E]
-		z_emb = self.entity_embeddings(z_indices)
+			scores_sp, scores_po = self.candidates_score(rel, arg1, arg2)
+			scores = scores_sp if arg2 is None else scores_po
 
-		assert z_emb.shape[0] == batch_size
-		assert z_emb.shape[2] == embedding_size
+			k = min(candidates, scores.shape[1])
+
+			# [B, K], [B, K]
+			z_scores, z_indices = torch.topk(scores, k=k, dim=1)
+			# [B, K, E]
+			z_emb = self.entity_embeddings(z_indices)
+
+
+			assert z_emb.shape[0] == batch_size
+			assert z_emb.shape[2] == embedding_size
+
+		except RuntimeError as e:
+			print("Cannot find the candidates with error: ", e)
+			return z_scores, z_emb, z_indices
 
 		return z_scores, z_emb, z_indices
 
@@ -878,25 +887,11 @@ class KBCModel(nn.Module, ABC):
 		try:
 
 			chains, chain_instructions = env.chains, env.chain_instructions
-
 			candidate_cache = {}
 
-			embedding_size = chains[0][0].shape[1]
+			nb_queries, embedding_size = chains[0][0].shape[0], chains[0][0].shape[1]
 
 			for inst_ind, inst in enumerate(chain_instructions):
-				# lhs,rel,rhs = chains[inst_ind]
-                #
-				# zcores, z_emb = self.get_best_candidates(rel, lhs, None, candidates)
-                #
-				# # [Num_queries, Emb_size]
-				# print(lhs.shape)
-                #
-				# # [Num_queries, candidates]
-				# print(zcores.shape)
-                #
-				# # [Num_queries, Candidates, Emb_size]
-				# print(z_emb.shape)
-				# break
 
 				if 'hop' in inst:
 					ind_1 = int(inst.split("_")[-2])
@@ -904,7 +899,7 @@ class KBCModel(nn.Module, ABC):
 
 					lhs_1,rel_1,rhs_1 = chains[ind_1]
 
-					print(lhs_1.shape)
+					# (a,p,X)(X,p,Y)
 
 
 					if f"rhs_{ind_1}" not in candidate_cache:
@@ -912,6 +907,7 @@ class KBCModel(nn.Module, ABC):
 						candidate_cache[f"rhs_{ind_1}"] = (rhs_1_scores, rhs_1_3d,rhs_1_indices)
 					else:
 						rhs_1_scores, rhs_1_3d, rhs_1_indices = candidate_cache[f"rhs_{ind_1}"]
+
 
 					lhs_2,rel_2,rhs_2 = chains[ind_2]
 
@@ -923,6 +919,10 @@ class KBCModel(nn.Module, ABC):
 					rel_2 = rel_2.view(-1, 1, embedding_size).repeat(1, nb_candidates, 1)
 					rel_2 = rel_2.view(-1, embedding_size)
 
+
+					del lhs_1, rel_1, rhs_1_3d
+					torch.cuda.empty_cache()
+
 					if f"rhs_{ind_2}" not in candidate_cache:
 						rhs_2_scores, rhs_2_3d, rhs_2_indices = self.get_best_candidates(rel_2, lhs_2, None, candidates)
 						candidate_cache[f"rhs_{ind_2}"] = (rhs_2_scores, rhs_2_3d, rhs_2_indices)
@@ -930,9 +930,8 @@ class KBCModel(nn.Module, ABC):
 						rhs_2_scores, rhs_2_3d,rhs_2_indices = candidate_cache[f"rhs_{ind_2}"]
 
 					if inst_ind == len(chain_instructions)-1:
-						target_candidates = rhs_2_indices
-
-
+						target_candidates = rhs_2_indices.view(nb_queries, -1)
+						print(target_candidates.shape)
 
 				elif 'inter' in inst:
 
@@ -950,7 +949,7 @@ class KBCModel(nn.Module, ABC):
 
 
 					if inst_ind == len(chain_instructions)-1:
-						target_candidates = rhs_1_indices
+						target_candidates = rhs_1_indices.view(nb_queries, -1)
 
 				torch.cuda.empty_cache()
 				gc.collect()
@@ -1187,12 +1186,14 @@ class ComplEx(KBCModel):
 				arg2: Optional[Tensor],
 				*args, **kwargs) -> Tuple[Optional[Tensor], Optional[Tensor]]:
 
+
 		emb = self.embeddings[0].weight
 
 		rel_real, rel_img = rel[:, :self.rank], rel[:, self.rank:]
 		emb_real, emb_img = emb[:, :self.rank], emb[:, self.rank:]
 
 		# [B] Tensor
+
 		score_sp = score_po = None
 
 		if arg1 is not None:
