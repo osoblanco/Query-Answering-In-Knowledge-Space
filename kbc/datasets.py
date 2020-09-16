@@ -6,31 +6,26 @@
 #
 
 from pathlib import Path
-import pkg_resources
 import pickle
 from typing import Dict, Tuple, List
 
-import numpy as np
 import torch
 from kbc.models import KBCModel
 
 
-DATA_PATH = Path(pkg_resources.resource_filename('kbc', 'data/'))
-
-
 class Dataset(object):
-    def __init__(self, name: str):
-        self.root = DATA_PATH / name
+    def __init__(self, path):
+        self.root = Path(path)
 
         self.data = {}
         for f in ['train', 'test', 'valid']:
-            in_file = open(str(self.root / (f + '.pickle')), 'rb')
+            in_file = open(str(self.root / (f + '.txt.pickle')), 'rb')
             self.data[f] = pickle.load(in_file)
 
-        maxis = np.max(self.data['train'], axis=0)
-        self.n_entities = int(max(maxis[0], maxis[2]) + 1)
-        self.n_predicates = int(maxis[1] + 1)
-        self.n_predicates *= 2
+        with open(str(self.root / 'ent_id.pickle'), 'rb') as f:
+            self.n_entities = len(pickle.load(f))
+        with open(str(self.root / 'rel_id.pickle'), 'rb') as f:
+            self.n_predicates = len(pickle.load(f))
 
         inp_f = open(str(self.root / f'to_skip.pickle'), 'rb')
         self.to_skip: Dict[str, Dict[Tuple[int, int], List[int]]] = pickle.load(inp_f)
@@ -40,12 +35,7 @@ class Dataset(object):
         return self.data[split]
 
     def get_train(self):
-        copy = np.copy(self.data['train'])
-        tmp = np.copy(copy[:, 0])
-        copy[:, 0] = copy[:, 2]
-        copy[:, 2] = tmp
-        copy[:, 1] += self.n_predicates // 2  # has been multiplied by two.
-        return np.vstack((self.data['train'], copy))
+        return self.data['train']
 
     def eval(self, model: KBCModel, split: str, n_queries: int = -1, missing_eval: str = 'both',at: Tuple[int] = (1, 3, 10)):
 
@@ -67,7 +57,17 @@ class Dataset(object):
                 tmp = torch.clone(q[:, 0])
                 q[:, 0] = q[:, 2]
                 q[:, 2] = tmp
-                q[:, 1] += self.n_predicates // 2
+
+                # Note: in q2b relations are labeled as
+                # [rel1, rel1inv, rel2, rel2inv, ...]
+                # In contrast, KBC uses
+                # [rel1, rel2, ..., rel1inv, rel2inv, ...]
+                # That's the reason for this:
+                rels = q[:, 1].clone()
+                q[:, 1][rels % 2 == 0] += 1
+                q[:, 1][rels % 2 != 0] -= 1
+                # Instead of:
+                # q[:, 1] += self.n_predicates // 2
 
             ranks = model.get_ranking(q, self.to_skip[m], batch_size=500)
             mean_reciprocal_rank[m] = torch.mean(1. / ranks).item()
