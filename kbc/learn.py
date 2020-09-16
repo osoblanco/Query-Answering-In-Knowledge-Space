@@ -10,6 +10,7 @@ import json
 import time
 import argparse
 from typing import Dict
+from pprint import pprint
 
 import torch
 from torch import optim
@@ -81,10 +82,8 @@ def train_kbc(KBC_optimizer, dataset, args):
 				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
 					json.dump(vars(args), json_file)
 
-
-
 		results = dataset.eval(model, 'test', -1)
-		print("\n\nTEST : ", results)
+		print("\n\nTEST : ", avg_both(*results))
 
 	except RuntimeError as e:
 		print("Training was interupted with error {}".format(str(e)))
@@ -110,13 +109,15 @@ def kbc_model_load(model_path):
 		identifiers = model_path.split('/')[-1]
 		identifiers = identifiers.split('-')
 
-		dataset_name, timestamp = identifiers[0].strip(),identifiers[-1][:-3].strip()
+		dataset_name, timestamp = identifiers[0].strip(), identifiers[-1][:-3].strip()
 		if "YAGO" in dataset_name:
 			dataset_name = "YAGO3-10"
+		if 'FB15k' and '237' in identifiers:
+			dataset_name = 'FB15k-237'
 
-		model_dir = os.path.join(os.getcwd(),'models')
+		model_dir = os.path.join(os.getcwd(), 'models')
 
-		with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(dataset_name,timestamp)),'r') as json_file:
+		with open(os.path.join(model_dir, f'{dataset_name}-metadata-{timestamp}.json'), 'r') as json_file:
 			metadata = json.load(json_file)
 
 
@@ -204,8 +205,7 @@ if __name__ == "__main__":
 
 
 	parser.add_argument(
-		'--dataset', choices=datasets,
-		help="Dataset in {}".format(datasets)
+		'path'
 	)
 
 	models = ['CP', 'ComplEx']
@@ -270,12 +270,11 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
-	dataset = Dataset(args.dataset)
+	args.dataset = os.path.basename(args.path)
+
+	dataset = Dataset(os.path.join(args.path, 'kbc_data'))
 	args.data_shape = dataset.get_shape()
 	examples = torch.from_numpy(dataset.get_train().astype('int64'))
-
-	print(len(examples))
-
 
 	model = {
 		'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
@@ -291,7 +290,7 @@ if __name__ == "__main__":
 	model.to(device)
 
 
-	print(vars(args))
+	pprint(vars(args))
 	optim_method = {
 		'Adagrad': lambda: optim.Adagrad(model.parameters(), lr=args.learning_rate),
 		'Adam': lambda: optim.Adam(model.parameters(), lr=args.learning_rate, betas=(args.decay1, args.decay2)),
@@ -302,7 +301,7 @@ if __name__ == "__main__":
 
 	curve, results = train_kbc(KBC_optimizer,dataset,args)
 
-	print(curve, results)
+	# print(curve, results)
 
 
 	# print(dataset_to_query(args.dataset))
