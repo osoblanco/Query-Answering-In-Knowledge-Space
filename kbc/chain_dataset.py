@@ -15,13 +15,15 @@ class Chain():
 class ChaineDataset():
     def __init__(self, dataset: Dataset, threshold:int=1e6):
 
-        self.threshold = threshold
 
-        self.raw_data = dataset
-        self.rhs_missing = self.raw_data.to_skip['rhs']
-        self.lhs_missing = self.raw_data.to_skip['lhs']
+        if dataset is not None:
+            self.threshold = threshold
 
-        self.full_missing = {**self.rhs_missing, **self.lhs_missing}
+            self.raw_data = dataset
+            self.rhs_missing = self.raw_data.to_skip['rhs']
+            self.lhs_missing = self.raw_data.to_skip['lhs']
+
+            self.full_missing = {**self.rhs_missing, **self.lhs_missing}
 
 
         self.neighbour_relations = {}

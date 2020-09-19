@@ -101,7 +101,7 @@ def kbc_model_load(model_path):
 	@returns:
 		model : Class(KBCOptimizer)
 		epoch : The epoch trained until (int)
-		loss  : The last loss stroed in the model
+		loss  : The last loss stored in the model
 	'''
 
 	try:
