@@ -54,8 +54,9 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 		# target_ids,lhs_norm  = env.target_ids, env.lhs_norm
 		kbc, chains = env.kbc, env.chains
 		#
-		#
-		# indices_rankedby_distances =  kbc.model.query_answering_BF(env , kbc.regularizer, 2)
+
+		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, 2)
+		torch.cuda.empty_cache()
 		#
 		# hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3])
 
@@ -64,8 +65,8 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 		queries = env.keys_hard
 		test_ans_hard = env.target_ids_hard
 		test_ans = 	env.target_ids_complete
-		scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
-
+		# scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
+        #
 		metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
 		print(metrics)
 

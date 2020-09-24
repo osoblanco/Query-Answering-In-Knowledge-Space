@@ -6,10 +6,18 @@ import enum
 import logging
 import subprocess
 
+from typing import List, Tuple
 from collections import OrderedDict
 import xml.etree.ElementTree
 import numpy as np
 import torch
+
+
+def make_batches(size: int, batch_size: int) -> List[Tuple[int, int]]:
+    max_batch = int(np.ceil(size / float(batch_size)))
+    res = [(i * batch_size, min(size, (i + 1) * batch_size)) for i in range(0, max_batch)]
+    return res
+
 
 def create_instructions(chains):
     instructions = []
@@ -76,6 +84,16 @@ def extract(elem, tag, drop_s):
     return float(text)
 
 
+def debug_memory():
+    import collections, gc, resource, torch
+    print('maxrss = {}'.format(
+        resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
+    tensors = collections.Counter((str(o.device), o.dtype, tuple(o.shape))
+                                  for o in gc.get_objects()
+                                  if torch.is_tensor(o))
+    for line in tensors.items():
+        print('{}\t{}'.format(*line))
+
 def check_gpu():
     d = OrderedDict()
     d["time"] = time.time()
@@ -96,7 +114,7 @@ def check_gpu():
     	msg = 'GPU status: Busy \n'
 
     now = time.strftime("%c")
-    return ('\n\nUpdated at %s\n\nGPU utilization: %s %%\nVRAM used: %s %%\n\n%s\n\n' % (now, d["gpu_util"],d["mem_used_per"], msg))
+    return ('\nUpdated at %s\nGPU utilization: %s %%\nVRAM used: %s %%\n%s\n' % (now, d["gpu_util"],d["mem_used_per"], msg))
 
 
 
@@ -218,7 +236,10 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
     chain_instructions = []
     try:
 
-        kbc,epoch,loss = kbc_model_load(kbc_path)
+        if env.kbc is not None:
+            kbc  = env.kbc
+        else:
+            kbc,_,_ = kbc_model_load(kbc_path)
 
 
         keys = []
@@ -247,8 +268,9 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
                 targets.append(part2[chain_iter][2])
 
 
-            part1 = flattened_part1
-            part2 = flattened_part2
+            part1 = flattened_part1[:100]
+            part2 = flattened_part2[:100]
+            targets = targets[:100]
 
             target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
 
@@ -297,8 +319,9 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
                 targets.append(part2[chain_iter][2])
 
 
-            part1 = flattened_part1
-            part2 = flattened_part2
+            part1 = flattened_part1[:100]
+            part2 = flattened_part2[:100]
+            targets = targets[:100]
 
             target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
 

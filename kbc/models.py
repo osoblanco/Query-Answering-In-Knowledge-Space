@@ -13,15 +13,20 @@ from torch import nn
 from torch import optim
 from torch import Tensor
 from torch.autograd import Variable
+from torch.utils.data import DataLoader
 
 from kbc.regularizers import Regularizer
 import tqdm
+
+import GPUtil
 
 import gc
 
 from kbc.utils import QuerDAG
 from kbc.utils import check_gpu
 from kbc.utils import DynKBCSingleton
+from kbc.utils import make_batches
+from kbc.utils import debug_memory
 
 
 class KBCModel(nn.Module, ABC):
@@ -845,7 +850,8 @@ class KBCModel(nn.Module, ABC):
 			rel: Tensor,
 			arg1: Optional[Tensor],
 			arg2: Optional[Tensor],
-			candidates: int = 5) -> Tuple[Tensor, Tensor]:
+			candidates: int = 5,
+			last_step = False) -> Tuple[Tensor, Tensor]:
 
 
 		z_scores, z_emb, z_indices = None, None , None
@@ -864,101 +870,257 @@ class KBCModel(nn.Module, ABC):
 
 			k = min(candidates, scores.shape[1])
 
-			# [B, K], [B, K]
-			z_scores, z_indices = torch.topk(scores, k=k, dim=1)
-			# [B, K, E]
-			z_emb = self.entity_embeddings(z_indices)
+
+			if not last_step:
+				# [B, K], [B, K]
+				z_scores, z_indices = torch.topk(scores, k=k, dim=1)
+				# [B, K, E]
+				z_emb = self.entity_embeddings(z_indices)
+				assert z_emb.shape[0] == batch_size
+				assert z_emb.shape[2] == embedding_size
+			else:
+				z_scores = scores
+
+				_, z_indices = torch.topk(scores, k=k, dim=1)
+				# [B, K, E]
+				# z_emb = self.entity_embeddings(z_indices)
+				# assert z_emb.shape[0] == batch_size
+				# assert z_emb.shape[2] == embedding_size
+
+				z_indices = torch.arange(z_scores.shape[1]).view(1,-1).repeat(z_scores.shape[0],1).cuda()
+				z_emb = self.entity_embeddings(z_indices)
 
 
-			assert z_emb.shape[0] == batch_size
-			assert z_emb.shape[2] == embedding_size
+
+			del z_indices
+			torch.cuda.empty_cache()
 
 		except RuntimeError as e:
 			print("Cannot find the candidates with error: ", e)
-			return z_scores, z_emb, z_indices
+			return z_scores, z_emb
 
-		return z_scores, z_emb, z_indices
+
+		return z_scores, z_emb
 
 	def query_answering_BF(self, env: DynKBCSingleton ,  regularizer: Regularizer, candidates: int = 5,\
-							similarity_metric : str = 'l2', t_norm: str = 'min' ):
+							similarity_metric : str = 'l2', t_norm: str = 'min' , batch_size = 16):
 
 
-		target_candidates = None
+		res = None
 		try:
 
 			chains, chain_instructions = env.chains, env.chain_instructions
-			candidate_cache = {}
 
 			nb_queries, embedding_size = chains[0][0].shape[0], chains[0][0].shape[1]
 
-			for inst_ind, inst in enumerate(chain_instructions):
 
-				if 'hop' in inst:
-					ind_1 = int(inst.split("_")[-2])
-					ind_2 = int(inst.split("_")[-1])
+			scores = None
 
-					lhs_1,rel_1,rhs_1 = chains[ind_1]
+			# data_loader = DataLoader(dataset=chains, batch_size=16, shuffle=False)
 
-					# (a,p,X)(X,p,Y)
+			batches = make_batches(nb_queries, batch_size)
 
+			for batch in tqdm.tqdm(batches):
 
-					if f"rhs_{ind_1}" not in candidate_cache:
-						rhs_1_scores, rhs_1_3d, rhs_1_indices = self.get_best_candidates(rel_1, lhs_1, None, candidates)
-						candidate_cache[f"rhs_{ind_1}"] = (rhs_1_scores, rhs_1_3d,rhs_1_indices)
-					else:
-						rhs_1_scores, rhs_1_3d, rhs_1_indices = candidate_cache[f"rhs_{ind_1}"]
+				nb_branches = candidates
+				batch_scores = None
+				candidate_cache = {}
 
-
-					lhs_2,rel_2,rhs_2 = chains[ind_2]
-
-					nb_candidates = rhs_1_3d.shape[1]
-
-					# [Num_queries * Candidates^K, Emb_size]
-					lhs_2 = rhs_1_3d.view(-1, embedding_size)
-
-					rel_2 = rel_2.view(-1, 1, embedding_size).repeat(1, nb_candidates, 1)
-					rel_2 = rel_2.view(-1, embedding_size)
-
-
-					del lhs_1, rel_1, rhs_1_3d
-					torch.cuda.empty_cache()
-
-					if f"rhs_{ind_2}" not in candidate_cache:
-						rhs_2_scores, rhs_2_3d, rhs_2_indices = self.get_best_candidates(rel_2, lhs_2, None, candidates)
-						candidate_cache[f"rhs_{ind_2}"] = (rhs_2_scores, rhs_2_3d, rhs_2_indices)
-					else:
-						rhs_2_scores, rhs_2_3d,rhs_2_indices = candidate_cache[f"rhs_{ind_2}"]
-
-					if inst_ind == len(chain_instructions)-1:
-						target_candidates = rhs_2_indices.view(nb_queries, -1)
-						print(target_candidates.shape)
-
-				elif 'inter' in inst:
-
-					ind_1 = int(inst.split("_")[-2])
-					ind_2 = int(inst.split("_")[-1])
-
-					lhs_1,rel_1,rhs_1 = chains[ind_1]
-
-					if f"rhs_{ind_1}" not in candidate_cache:
-						rhs_1_scores, rhs_1_3d, rhs_1_indices = self.get_best_candidates(rel_1, lhs_1, None, candidates)
-						candidate_cache[f"rhs_{ind_1}"] = (rhs_1_scores, rhs_1_3d, rhs_1_indices)
-					else:
-						rhs_1_scores, rhs_1_3d, rhs_1_indices = candidate_cache[f"rhs_{ind_1}"]
-						candidate_cache[f"rhs_{ind_2}"] = (rhs_1_scores, rhs_1_3d, rhs_1_indices)
-
-
-					if inst_ind == len(chain_instructions)-1:
-						target_candidates = rhs_1_indices.view(nb_queries, -1)
-
+				batch_size = batch[1] - batch[0]
 				torch.cuda.empty_cache()
-				gc.collect()
+
+				with torch.no_grad():
+					for inst_ind, inst in enumerate(chain_instructions):
+
+						last_step =  inst_ind == len(chain_instructions)-1
+
+						if 'hop' in inst:
+							ind_1 = int(inst.split("_")[-2])
+							ind_2 = int(inst.split("_")[-1])
+
+							lhs_1,rel_1,rhs_1 = chains[ind_1]
+
+							if lhs_1 is not None:
+								lhs_1 = lhs_1[batch[0]:batch[1]]
+
+							rel_1 = rel_1[batch[0]:batch[1]]
+
+
+							nb_sources = rel_1.shape[0]
+							nb_branches = nb_sources // batch_size
+							# (a,p,X)(X,p,Y)
+
+							if f"rhs_{ind_1}" not in candidate_cache:
+								z_scores, rhs_1_3d = self.get_best_candidates(rel_1, lhs_1, None, candidates)
+								# [Num_queries * Candidates^K]
+								z_scores_1d = z_scores.view(-1)
+								batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_branches).view(-1))
+								candidate_cache[f"rhs_{ind_1}"] = (batch_scores, rhs_1_3d)
+
+							else:
+								batch_scores, rhs_1_3d = candidate_cache[f"rhs_{ind_1}"]
+								# [Num_queries * Candidates^K * Emb_size]
+								batch_scores = batch_scores.view(-1)
+
+
+							nb_sources = rhs_1_3d.shape[0]* rhs_1_3d.shape[1]
+							nb_branches = nb_sources // batch_size
+
+							lhs_2,rel_2,rhs_2 = chains[ind_2]
+
+							rel_2 = rel_2[batch[0]:batch[1]]
+
+							# [Num_queries * Candidates^K, Emb_size]
+							lhs_2 = rhs_1_3d.view(-1, embedding_size)
+							rel_2 = rel_2.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
+							rel_2 = rel_2.view(-1, embedding_size)
+
+							del lhs_1, rel_1, rhs_1_3d
+							torch.cuda.empty_cache()
+
+							if f"rhs_{ind_2}" not in candidate_cache:
+								z_scores, rhs_2_3d = self.get_best_candidates(rel_2, lhs_2, None, candidates, last_step)
+
+								# [batch_size * Candidates^K]
+								z_scores_1d = z_scores.view(-1)
+
+								if not last_step:
+									batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_branches).view(-1))
+								else:
+									batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores.view(-1, 1).repeat(1, z_scores.shape[1]).view(-1))
+
+
+								candidate_cache[f"rhs_{ind_2}"] = (batch_scores, rhs_2_3d)
+							else:
+								z_scores, rhs_2_3d = candidate_cache[f"rhs_{ind_2}"]
+								# [Num_queries * Candidates^K * Emb_size]
+								z_scores_1d = z_scores.view(-1)
+
+
+							del lhs_2, rel_2, rhs_2_3d, z_scores, z_scores_1d
+							torch.cuda.empty_cache()
+
+						elif 'inter' in inst:
+
+							ind_1 = int(inst.split("_")[-2])
+							ind_2 = int(inst.split("_")[-1])
+
+							lhs_1,rel_1,rhs_1 = chains[ind_1]
+
+							if lhs_1 is not None:
+								lhs_1 = lhs_1[batch[0]:batch[1]]
+
+							rel_1 = rel_1[batch[0]:batch[1]]
+
+							nb_sources = rel_1.shape[0]
+							nb_branches = nb_sources // batch_size
+
+							if f"rhs_{ind_1}" not in candidate_cache:
+								z_scores, rhs_1_3d = self.get_best_candidates(rel_1, lhs_1, None, candidates, last_step)
+								# [Num_queries * Candidates^K]
+								z_scores_1d = z_scores.view(-1)
+
+								if not last_step:
+									batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_branches).view(-1))
+								else:
+									batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores.view(-1, 1).repeat(1, z_scores.shape[1]).view(-1))
+
+								candidate_cache[f"rhs_{ind_1}"] = (batch_scores, rhs_1_3d)
+
+							else:
+								z_scores, lhs_1_3d = candidate_cache[f"rhs_{ind_1}"]
+
+								nb_sources = lhs_1_3d.shape[0]* lhs_1_3d.shape[1]
+								nb_branches = nb_sources // batch_size
+
+								# [Num_queries * Candidates^K * Emb_size]
+								z_scores_1d = z_scores.view(-1)
+
+								# [Num_queries * Candidates^K, Emb_size]
+								lhs_1 = lhs_1_3d.view(-1, embedding_size)
+								rel_1 = rel_1.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
+								rel_1 = rel_1.view(-1, embedding_size)
+								z_scores, rhs_1_3d = self.get_best_candidates(rel_1, lhs_1, None, candidates, last_step)
+								z_scores_1d = z_scores.view(-1)
+
+								if not last_step:
+									batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_branches).view(-1))
+								else:
+									batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores.view(-1, 1).repeat(1, z_scores.shape[1]).view(-1))
+
+								candidate_cache[f"rhs_{ind_2}"] = (batch_scores, rhs_1_3d)
+
+							nb_sources = rhs_1_3d.shape[0] * rhs_1_3d.shape[1]
+							nb_branches = nb_sources // batch_size
+
+							lhs_2,rel_2,rhs_2 = chains[ind_2]
+
+							rel_2 = rel_2[batch[0]:batch[1]]
+
+							if lhs_2 is not None:
+								lhs_2 = lhs_2[batch[0]:batch[1]]
+
+
+							rel_2 = rel_2.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
+							rel_2 = rel_2.view(-1, embedding_size)
+							rhs_2 = rhs_1_3d.view(-1, embedding_size)
+
+
+							lhs_2 = lhs_2.view(-1, 1, embedding_size).repeat(1, nb_branches, 1).view(-1, embedding_size)
+
+
+							del lhs_1, rel_1, rhs_1_3d, rhs_1,z_scores_1d, z_scores
+							torch.cuda.empty_cache()
+							gc.collect()
+
+							z_scores = self.score_fixed(rel_2, lhs_2, rhs_2, candidates)
+
+							# [Num_queries * Candidates^K]
+							z_scores_1d = z_scores.view(-1)
+							batch_scores = z_scores_1d if batch_scores is None else torch.min(z_scores_1d, batch_scores)
+							candidate_cache[f"rhs_{ind_2}"] = (batch_scores, rhs_2.view(batch_size,nb_branches,embedding_size))
+
+							if last_step:
+								nb_sources = rel_2.shape[0]//nb_branches
+								nb_branches = nb_sources // batch_size
+
+							del lhs_2, rel_2, rhs_2, z_scores_1d, z_scores
+							torch.cuda.empty_cache()
+
+							gc.collect()
+
+
+
+						torch.cuda.empty_cache()
+						gc.collect()
+
+					if batch_scores is not None:
+						# [B * entites * S ]
+						# S ==  K**(V-1)
+						scores_2d = batch_scores.view(batch_size,nb_branches, -1 )
+						res, _ = torch.max(scores_2d, dim=1)
+						scores = res if scores is None else torch.cat([scores,res])
+						candidate_cache.clear()
+						del batch_scores, scores_2d, res
+						torch.cuda.empty_cache()
+						gc.collect()
+
+
+					else:
+						return 0
+
+
+
+					res = scores
+					torch.cuda.empty_cache()
 
 
 		except RuntimeError as e:
+			import traceback
+			print(traceback.print_exc())
 			print("Cannot complete iterative BF with error: ",e)
-			return target_candidates
-		return target_candidates
+			return res
+		return res
 
 
 	def __expanded_pairwise_distances__(self,x, y=None):
@@ -1179,6 +1341,29 @@ class ComplEx(KBCModel):
 	def entity_embeddings(self, indcies: Tensor):
 		return self.embeddings[0](indcies)
 
+
+	def score_fixed(self,
+			  rel: Tensor,
+			  arg1: Tensor,
+			  arg2: Tensor,
+			  *args, **kwargs) -> Tensor:
+		# [B, E]
+		rel_real, rel_img = rel[:, :self.rank], rel[:, self.rank:]
+		arg1_real, arg1_img = arg1[:, :self.rank], arg1[:, self.rank:]
+		arg2_real, arg2_img = arg2[:, :self.rank], arg2[:, self.rank:]
+
+		# [B] Tensor
+		score1 = torch.sum(rel_real * arg1_real * arg2_real, 1)
+		score2 = torch.sum(rel_real * arg1_img * arg2_img, 1)
+		score3 = torch.sum(rel_img * arg1_real * arg2_img, 1)
+		score4 = torch.sum(rel_img * arg1_img * arg2_real, 1)
+
+		res = score1 + score2 + score3 - score4
+
+		del score1,score2, score3, score4, rel_real, rel_img, arg1_real, arg1_img, arg2_real, arg2_img
+		torch.cuda.empty_cache()
+		# [B] Tensor
+		return res
 
 	def candidates_score(self,
 				rel: Tensor,
