@@ -175,124 +175,62 @@ class KBCModel(nn.Module, ABC):
 				chain1, chain2, chain3 = chains
 
 			if QuerDAG.TYPE1_2.value in graph_type:
-				try:
-					print(check_gpu())
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				rel_2 = chain2[1]
+				rhs_2 = chain2[2]
 
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-					rhs_2 = chain2[2].clone().detach().requires_grad_(False).to(chain2[2].device)
-
-
-				except RuntimeError as e:
-					print("Cuda Memory not enough trying a hack")
-					print("_____________________________________________")
-
-					print(check_gpu())
-
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-
-					rel_2 = chain2[1]
-					rhs_2 = chain2[2]
-
-				raw_chain = [lhs_1,rel_1,rel_2,rhs_2]
+				raw_chain = [lhs_1, rel_1, rel_2, rhs_2]
 
 			elif QuerDAG.TYPE2_2.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+				lhs_2 = chain2[0]
+				rel_2 = chain2[1]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
-
-				raw_chain = [lhs_1,rel_1,lhs_2,rel_2]
+				raw_chain = [lhs_1, rel_1, lhs_2, rel_2]
 
 			elif QuerDAG.TYPE1_3.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
-					rhs_1 = chain1[2].clone().detach().requires_grad_(False).to(chain1[2].device)
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
+				rhs_1 = chain1[2]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+				lhs_2 = chain2[0]
+				rel_2 = chain2[1]
 
-					rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-					rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
+				rel_3 = chain3[1]
+				rhs_3 = chain3[2]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-					rhs_1 = chain1[2]
-
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
-
-					rel_3 = chain3[1]
-					rhs_3 = chain3[2]
-
-				raw_chain = [lhs_1,rel_1,rhs_1,lhs_2,rel_2,rel_3,rhs_3]
+				raw_chain = [lhs_1, rel_1, rhs_1, lhs_2, rel_2, rel_3, rhs_3]
 
 			elif QuerDAG.TYPE2_3.value in graph_type or QuerDAG.TYPE3_3.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+				lhs_2 = chain2[0]
+				rel_2 = chain2[1]
 
-					lhs_3 = chain3[0].clone().detach().requires_grad_(False).to(chain3[0].device)
-					rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
+				lhs_3 = chain3[0]
+				rel_3 = chain3[1]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
-
-					lhs_3 = chain3[0]
-					rel_3 = chain3[1]
-
-				raw_chain = [lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3]
+				raw_chain = [lhs_1, rel_1, lhs_2, rel_2, lhs_3, rel_3]
 
 			elif QuerDAG.TYPE4_3.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+				lhs_2 = chain2[0]
+				rel_2 = chain2[1]
 
-					rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-					rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
+				rel_3 = chain3[1]
+				rhs_3 = chain3[2]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
-
-					rel_3 = chain3[1]
-					rhs_3 = chain3[2]
-
-				raw_chain = [lhs_1,rel_1,lhs_2,rel_2,rel_3,rhs_3]
+				raw_chain = [lhs_1, rel_1, lhs_2, rel_2, rel_3, rhs_3]
 
 		except RuntimeError as e:
-			print("Cannot Get chains with Error: ",e)
+			print("Cannot Get chains with Error: ", e)
 			return None
 
 		return raw_chain

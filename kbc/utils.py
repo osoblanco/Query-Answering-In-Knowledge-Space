@@ -218,8 +218,10 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
     chain_instructions = []
     try:
 
-        kbc,epoch,loss = kbc_model_load(kbc_path)
+        kbc, epoch, loss = kbc_model_load(kbc_path)
 
+        for parameter in kbc.model.parameters():
+            parameter.requires_grad = False
 
         keys = []
         target_ids = {}
@@ -557,17 +559,13 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             target_ids = dataset['target_ids']
             chain_instructions = create_instructions([parts[0][0], parts[1][0], parts[2][0]])
 
-
-
-        print(chain_instructions)
-
         if mode == 'hard':
-            env.set_attr(kbc, chains, parts, target_ids, keys, None, None,chain_instructions, graph_type, lhs_norm, False )
+            env.set_attr(kbc, chains, parts, target_ids, keys, None, None, chain_instructions, graph_type, lhs_norm, False )
 
             # env.set_attr(kbc,chains,parts,target_ids, keys, chain_instructions , graph_type, lhs_norm)
+            # def set_attr(kbc, chains, parts, target_ids_hard, keys_hard, target_ids_complete, keys_complete, chain_instructions, graph_type, lhs_norm, cuda ):
         else:
             env.set_eval_complete(target_ids,keys)
-
 
     except RuntimeError as e:
         print("Cannot preload environment with error: ", e)
