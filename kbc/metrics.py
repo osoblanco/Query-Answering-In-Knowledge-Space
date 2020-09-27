@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 import logging
+import gc
 import time
 
 
@@ -114,32 +115,31 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
 		step = 0
 		logs = []
 
-		count = 0
-		for key,val in test_ans.items():
-			print(key,len(val))
-			count += 1
+		# count = 0
+		# for key,val in test_ans.items():
+		# 	print(key,len(val))
+		# 	count += 1
+        #
+		# 	if count > 5:
+		# 		break
+        #
+		# print("____________")
+		# count = 0
+		# for key,val in test_ans_hard.items():
+		# 	print(key,len(val))
+		# 	count += 1
+        #
+		# 	if count > 5:
+		# 		break
 
-			if count > 5:
-				break
-
-		print("____________")
-		count = 0
-		for key,val in test_ans_hard.items():
-			print(key,len(val))
-			count += 1
-
-			if count > 5:
-				break
-		with torch.no_grad():
-
-			for query_id, query in enumerate(tqdm(queries[:1000])):
+		for query_id, query in enumerate(tqdm(queries)):
+			with torch.no_grad():
 
 				score = scores[query_id]
 				score -= (torch.min(score) - 1)
 				ans = test_ans[query]
 				hard_ans = test_ans_hard[query]
 				all_idx = set(range(nentity))
-
 
 				false_ans = all_idx - set(ans)
 				ans_list = list(ans)
@@ -209,6 +209,7 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
 
 				del argsort, ranking, filter_score, ans_list, hard_ans_list, score, vals
 				torch.cuda.empty_cache()
+				gc.collect()
 
 				# print(step)
 				if step % 100 == 0:

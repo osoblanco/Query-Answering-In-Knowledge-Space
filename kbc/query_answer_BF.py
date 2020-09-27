@@ -55,9 +55,14 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 		kbc, chains = env.kbc, env.chains
 		#
 
-		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, 2)
+		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, 2 ,similarity_metric = 'l2', t_norm = 'min' , batch_size = 2)
+		print(scores.shape)
 		torch.cuda.empty_cache()
-		#
+		# from utils import debug_memory
+		# import GPUtil
+		# debug_memory()
+		# GPUtil.showUtilization()
+		# #
 		# hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3])
 
 		# APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
