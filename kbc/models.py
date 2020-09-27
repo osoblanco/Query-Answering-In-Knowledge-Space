@@ -698,7 +698,8 @@ class KBCModel(nn.Module, ABC):
 		return scores
 
 	def type4_3chain_optimize(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+							  max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
+							  disjunctive=False):
 		try:
 			lhs_1, rel_1, lhs_2, rel_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE4_3.value)
 
@@ -719,12 +720,17 @@ class KBCModel(nn.Module, ABC):
 					score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess_1)
 					score_3, factors_2 = self.score_emb(obj_guess_1, rel_3, obj_guess_2)
 					factors = [factors_1[2], factors_2[2]]
-
-					atoms = torch.sigmoid(torch.cat((score_1, score_2, score_3), dim=1))
-
 					guess_regularizer = regularizer(factors)
 
-					t_norm = torch.prod(atoms, dim=1)
+					if not disjunctive:
+						atoms = torch.sigmoid(torch.cat((score_1, score_2, score_3), dim=1))
+						t_norm = torch.prod(atoms, dim=1)
+					else:
+						disj_atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
+						t_conorm = torch.sum(disj_atoms, dim=1, keepdim=True) - torch.prod(disj_atoms, dim=1, keepdim=True)
+						conj_atoms = torch.cat((t_conorm, torch.sigmoid(score_3)), dim=1)
+						t_norm = torch.prod(conj_atoms, dim=1)
+
 					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()

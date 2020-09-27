@@ -111,6 +111,7 @@ class QuerDAG(enum.Enum):
     TYPE2_3 = "2_3"
     TYPE3_3 = "3_3"
     TYPE4_3 = "4_3"
+    TYPE4_3u = "4_3u"
     TYPE1_3_joint = '1_3_joint'
 
 
@@ -501,7 +502,10 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             parts = [part1, part2, part3]
 
         elif QuerDAG.TYPE4_3.value in graph_type:
-            raw = dataset.type4_3chain
+            if graph_type == QuerDAG.TYPE4_3u.value:
+                raw = dataset.type4_3chain_u
+            else:
+                raw = dataset.type4_3chain
 
             type4_3chain = []
             for i in range(len(raw)):

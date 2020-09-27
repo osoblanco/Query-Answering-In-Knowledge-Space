@@ -114,10 +114,10 @@ def optimize_intersections(query_type, kbc_path, dataset_hard, dataset_complete,
         print("Cannot answer the query with a Brute Force: ", e)
 
 
-def get_type43_graph_optimization(kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min'):
+def get_type43_graph_optimization(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min'):
     try:
-        env = preload_env(kbc_path, dataset_hard, '4_3', mode='hard')
-        env = preload_env(kbc_path, dataset_complete, '4_3', mode='complete')
+        env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
+        env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
 
         kbc, chains = env.kbc, env.chains
 
@@ -125,7 +125,8 @@ def get_type43_graph_optimization(kbc_path, dataset_hard, dataset_complete, simi
         test_ans_hard = env.target_ids_hard
         test_ans = env.target_ids_complete
 
-        scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
+        scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm,
+                                                 disjunctive=query_type == QuerDAG.TYPE4_3u.value)
 
         print('Evaluating metrics')
         metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
@@ -362,7 +363,7 @@ def exhaustive_search_comparison(kbc_path, dataset, dataset_mode, similarity_met
         if QuerDAG.TYPE2_3.value in graph_type:
             obj_guess_optim,closest_map_optim = optimize_intersections(kbc_path, dataset, dataset_mode, similarity_metric ='l2', t_norm='min')
         if QuerDAG.TYPE3_3.value in graph_type:
-            obj_guess_optim,closest_map_optim = get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+            obj_guess_optim,closest_map_optim = get_type33_graph_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
         if QuerDAG.TYPE4_3.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type43_graph_optimization(kbc_path, dataset, dataset_mode, similarity_metric ='l2', t_norm='min')
 
@@ -383,7 +384,7 @@ if __name__ == "__main__":
 
     chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value,
     QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e',
-                   QuerDAG.TYPE2_2u.value]
+                   QuerDAG.TYPE2_2u.value, QuerDAG.TYPE4_3u.value]
 
     t_norms = ['min','product']
 
@@ -456,6 +457,8 @@ if __name__ == "__main__":
             ans = get_type33_graph_optimization(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE4_3.value == args.chain_type:
-            ans = get_type43_graph_optimization(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+            ans = get_type43_graph_optimization(QuerDAG.TYPE4_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+        if QuerDAG.TYPE4_3u.value == args.chain_type:
+            ans = get_type43_graph_optimization(QuerDAG.TYPE4_3u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
         if 'e' == args.chain_type:
             ans = exhaustive_search_comparison(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, '1_2')
