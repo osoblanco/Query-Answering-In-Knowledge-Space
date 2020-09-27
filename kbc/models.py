@@ -7,6 +7,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Optional
+import math
 
 import torch
 from torch import nn
@@ -315,11 +316,18 @@ class KBCModel(nn.Module, ABC):
 
 		return obj_guess, closest_map, indices_rankedby_distances
 
-	def type2_2chain_optimize(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-							  max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+	def optimize_intersections(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+							   max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
 		try:
+			if len(chains) == 2:
+				raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_2.value)
+				lhs_1, rel_1, lhs_2, rel_2 = raw_chain
+			elif len(chains) == 3:
+				raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_3.value)
+				lhs_1, rel_1, lhs_2, rel_2, lhs_3, rel_3 = raw_chain
+			else:
+				raise ValueError(f'Invalid number of intersections: {len(chains)}')
 
-			lhs_1, rel_1, lhs_2, rel_2 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE2_2.value)
 			obj_guess = torch.normal(0, self.init_size, lhs_2.shape, device=lhs_2.device, requires_grad=True)
 			optimizer = optim.Adam([obj_guess], lr=0.1)
 
@@ -330,7 +338,7 @@ class KBCModel(nn.Module, ABC):
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 				i = 0
-				while i < max_steps and (prev_loss_value - loss_value) > 1e-30:
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-30:
 					prev_loss_value = loss_value
 
 					score_1, factors = self.score_emb(lhs_1, rel_1, obj_guess)
@@ -338,6 +346,11 @@ class KBCModel(nn.Module, ABC):
 					score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess)
 
 					atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
+
+					if len(chains) == 3:
+						score_3, _ = self.score_emb(lhs_3, rel_3, obj_guess)
+						atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
+
 					t_norm = torch.prod(atoms, dim=1)
 					loss = -t_norm.mean() + guess_regularizer
 
@@ -354,17 +367,8 @@ class KBCModel(nn.Module, ABC):
 
 				if i != max_steps:
 					bar.update(max_steps - i + 1)
-					print("\n\n Search converged early after {} iterations".format(i))
-
-				torch.cuda.empty_cache()
-				lhs_1 = None
-				rel_1 = None
-
-				lhs_2 = None
-				rel_2 = None
-
-				torch.cuda.empty_cache()
-				gc.collect()
+					bar.close()
+					print("Search converged early after {} iterations".format(i))
 
 				with torch.no_grad():
 					scores = self.__compute_similarities__(obj_guess)

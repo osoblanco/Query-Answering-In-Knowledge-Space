@@ -114,23 +114,6 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
         step = 0
         logs = []
 
-        count = 0
-        for key,val in test_ans.items():
-            print(key,len(val))
-            count += 1
-
-            if count > 5:
-                break
-
-        print("____________")
-        count = 0
-        for key,val in test_ans_hard.items():
-            print(key,len(val))
-            count += 1
-
-            if count > 5:
-                break
-
         for query_id, query in enumerate(tqdm(queries)):
 
             score = scores[query_id]
@@ -138,7 +121,6 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
             ans = test_ans[query]
             hard_ans = test_ans_hard[query]
             all_idx = set(range(nentity))
-
 
             false_ans = all_idx - set(ans)
             ans_list = list(ans)
