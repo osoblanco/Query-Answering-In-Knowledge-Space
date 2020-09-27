@@ -315,56 +315,46 @@ class KBCModel(nn.Module, ABC):
 
 		return obj_guess, closest_map, indices_rankedby_distances
 
-	def type2_2chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+	def type2_2chain_optimize(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+							  max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
 		try:
 
-			lhs_1,rel_1,lhs_2,rel_2 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE2_2.value)
-			obj_guess = torch.rand(lhs_2.shape, requires_grad=True, device=lhs_2.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-			obj_guess = obj_guess.clone().detach().requires_grad_(True).to(lhs_2.device)
-
-
+			lhs_1, rel_1, lhs_2, rel_2 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE2_2.value)
+			obj_guess = torch.normal(0, self.init_size, lhs_2.shape, device=lhs_2.device, requires_grad=True)
 			optimizer = optim.Adam([obj_guess], lr=0.1)
 
-			prev_loss =  torch.tensor([1000.], dtype = torch.float)
-			loss = torch.tensor([999.],dtype=torch.float)
+			prev_loss_value = 1000
+			loss_value = 999
 
 			losses = []
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+				i = 0
+				while i < max_steps and (prev_loss_value - loss_value) > 1e-30:
+					prev_loss_value = loss_value
 
-				i =1
-				while i <= max_steps and (prev_loss - loss)>1e-30:
+					score_1, factors = self.score_emb(lhs_1, rel_1, obj_guess)
+					guess_regularizer = regularizer([factors[2]])
+					score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess)
 
-					prev_loss = loss.clone()
-
-					l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
-					score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess) )
-
-
-					l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
-					score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess))
-
-					loss = torch.min(score_1,score_2) - (-l_reg_1 - l_reg_2)
+					atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
+					t_norm = torch.prod(atoms, dim=1)
+					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()
-
 					loss.backward()
 					optimizer.step()
 
-					i+=1
+					i += 1
 					bar.update(1)
 					bar.set_postfix(loss=f'{loss.item():.6f}')
 
-					losses.append(loss.item())
-
+					loss_value = loss.item()
+					losses.append(loss_value)
 
 				if i != max_steps:
-					bar.update(max_steps-i +1)
-
-
+					bar.update(max_steps - i + 1)
 					print("\n\n Search converged early after {} iterations".format(i))
-
 
 				torch.cuda.empty_cache()
 				lhs_1 = None
@@ -376,21 +366,27 @@ class KBCModel(nn.Module, ABC):
 				torch.cuda.empty_cache()
 				gc.collect()
 
-				#print(losses)
-
-				if 'cp' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-				elif 'complex' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-				else:
-					print("Choose model type from cp or complex please")
-					raise
+				with torch.no_grad():
+					scores = self.__compute_similarities__(obj_guess)
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
 			return None
 
-		return obj_guess, closest_map, indices_rankedby_distances
+		return scores
+
+	def __compute_similarities__(self, x: torch.tensor):
+		model_type = self.model_type().lower()
+		if 'cp' in model_type:
+			entities = self.rhs
+		elif 'complex' in model_type:
+			entities = self.embeddings[0].weight.data
+		else:
+			raise ValueError(f'Unknown model type {model_type}')
+
+		scores = x @ entities.t()
+
+		return scores
 
 	def type1_3chain_optimize_joint(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
 									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
@@ -1097,6 +1093,7 @@ class ComplEx(KBCModel):
 		self.embeddings[0].weight.data *= init_size
 		self.embeddings[1].weight.data *= init_size
 
+		self.init_size = init_size
 
 	def score(self, x):
 		lhs = self.embeddings[0](x[:, 0])
@@ -1156,20 +1153,19 @@ class ComplEx(KBCModel):
 
 		return score_sp, score_po
 
+	def score_emb(self, lhs_emb, rel_emb, rhs_emb):
+		lhs = lhs_emb[:, :self.rank], lhs_emb[:, self.rank:]
+		rel = rel_emb[:, :self.rank], rel_emb[:, self.rank:]
+		rhs = rhs_emb[:, :self.rank], rhs_emb[:, self.rank:]
 
-
-
-	def score_emb(self, lhs, rel, rhs):
-
-		lhs_dub = lhs[:, :self.rank], lhs[:, self.rank:]
-		rel_dub = rel[:, :self.rank], rel[:, self.rank:]
-		rhs_dub = rhs[:, :self.rank], rhs[:, self.rank:]
-
-		return torch.mean(torch.sum(
-			(lhs_dub[0] * rel_dub[0] - lhs_dub[1] * rel_dub[1]) * rhs_dub[0] +
-			(lhs_dub[0] * rel_dub[1] + lhs_dub[1] * rel_dub[0]) * rhs_dub[1],
-			1, keepdim=True))
-
+		return torch.sum(
+			(lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
+			(lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
+			1, keepdim=True), (
+			torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
+			torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
+			torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
+		)
 
 	def forward(self, x):
 		lhs = self.embeddings[0](x[:, 0])

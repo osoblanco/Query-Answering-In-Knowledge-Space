@@ -21,7 +21,7 @@ from kbc.utils import preload_env
 
 from kbc.metrics import average_percentile_rank
 from kbc.metrics import norm_comparison
-from kbc.metrics import hits_at_k
+from kbc.metrics import hits_at_k, evaluation
 
 def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
     obj_guess_raw, closest_map = None, None
@@ -100,38 +100,34 @@ def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
     return obj_guess_raw, closest_map
 
-def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
+def get_type22_graph_optimizaton(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess_raw, closest_map = None, None
 
     try:
 
-        env = preload_env(kbc_path, dataset, dataset_mode, '2_2')
+        env = preload_env(kbc_path, dataset_hard, '2_2', mode='hard')
+        env = preload_env(kbc_path, dataset_complete, '2_2', mode='complete')
+
+        print(len(env.target_ids_hard))
+
         part1, part2 = env.parts
-        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
+
         kbc, chains = env.kbc, env.chains
 
-        obj_guess_raw, closest_map, indices_rankedby_distances \
-        = kbc.model.type2_2chain_optimize(chains, kbc.regularizer,\
-        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
+        queries = env.keys_hard
+        test_ans_hard = env.target_ids_hard
+        test_ans = env.target_ids_complete
 
-        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
+        scores = kbc.model.type2_2chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
 
-        keys = []
-        for i in range(len(indices_rankedby_distances)):
-
-            key = [part1[i][0],part1[i][1],part2[i][0],part1[i][1]]
-            key = '_'.join(str(e.item()) for e in key)
-            keys.append(key)
-
-        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
-
-        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
+        metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
+        print(metrics)
 
     except RuntimeError as e:
-        print(e)
+        print("Cannot answer the query with a Brute Force: ", e)
         return None
 
-    return obj_guess_raw, closest_map
+    return None
 
 def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
@@ -508,28 +504,31 @@ if __name__ == "__main__":
 
     else:
 
-        data_path = args.dataset+'.pkl'
-        data = pickle.load(open(data_path,'rb'))
+        data_hard_path = args.dataset + '_hard.pkl'
+        data_complete_path = args.dataset + '_complete.pkl'
+
+        data_hard = pickle.load(open(data_hard_path, 'rb'))
+        data_complete = pickle.load(open(data_complete_path, 'rb'))
 
         if QuerDAG.TYPE1_2.value in args.chain_type:
-            ans =  get_type12_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+            ans =  get_type12_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE2_2.value in args.chain_type:
-            ans =  get_type22_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+            ans =  get_type22_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE1_3_joint.value == args.chain_type:
-            ans =  get_type13_graph_optimizaton_joint(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+            ans =  get_type13_graph_optimizaton_joint(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE1_3.value == args.chain_type:
-            ans =  get_type13_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+            ans =  get_type13_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE2_3.value == args.chain_type:
-            ans =  get_type23_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+            ans =  get_type23_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE3_3.value == args.chain_type:
-            ans =  get_type33_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+            ans =  get_type33_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE4_3.value == args.chain_type:
-            ans =  get_type43_graph_optimizaton(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm)
+            ans =  get_type43_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
         if 'e' == args.chain_type:
-            ans = exhaustive_search_comparison(args.model_path, data, args.dataset_mode, args.similarity_metric, args.t_norm, '1_2')
+            ans = exhaustive_search_comparison(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, '1_2')
