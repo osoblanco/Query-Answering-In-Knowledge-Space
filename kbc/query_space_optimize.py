@@ -68,6 +68,7 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
 
     return obj_guess_raw, closest_map
 
+
 def optimize_chains(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min'):
     try:
         env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
@@ -101,6 +102,27 @@ def optimize_intersections(query_type, kbc_path, dataset_hard, dataset_complete,
         test_ans = env.target_ids_complete
 
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
+
+        print('Evaluating metrics')
+        metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
+        print(metrics)
+
+    except RuntimeError as e:
+        print("Cannot answer the query with a Brute Force: ", e)
+
+
+def get_type43_graph_optimization(kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min'):
+    try:
+        env = preload_env(kbc_path, dataset_hard, '4_3', mode='hard')
+        env = preload_env(kbc_path, dataset_complete, '4_3', mode='complete')
+
+        kbc, chains = env.kbc, env.chains
+
+        queries = env.keys_hard
+        test_ans_hard = env.target_ids_hard
+        test_ans = env.target_ids_complete
+
+        scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
 
         print('Evaluating metrics')
         metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
@@ -340,40 +362,6 @@ def get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         return None
     return obj_guess_raw,closest_map
 
-def get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min'):
-
-    try:
-        env = preload_env(kbc_path, dataset, dataset_mode, '4_3')
-        part1, part2, part3 = env.parts
-        target_ids,lhs_norm  = env.target_ids, env.lhs_norm
-        kbc, chains = env.kbc, env.chains
-
-        obj_guess_raw,closest_map,indices_rankedby_distances \
-        = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,\
-        max_steps=1000,similarity_metric=similarity_metric, t_norm=t_norm)
-
-        lhs_norm,  guess_norm =  norm_comparison(lhs_norm, obj_guess_raw)
-
-        keys = []
-        for i in range(len(indices_rankedby_distances)):
-
-            key = [part1[i][0],part1[i][1],\
-                    part2[i][0],part2[i][1],\
-                        part3[i][1],part3[i][2]
-                ]
-
-            key = '_'.join(str(e.item()) for e in key)
-            keys.append(key)
-
-        hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3,5,10,20])
-
-        APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
-
-    except RuntimeError as e:
-        print(e)
-        return None
-    return obj_guess_raw,closest_map
-
 def exhaustive_search_comparison(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min', graph_type = QuerDAG.TYPE1_2.value):
     try:
 
@@ -388,7 +376,7 @@ def exhaustive_search_comparison(kbc_path, dataset, dataset_mode, similarity_met
         if QuerDAG.TYPE3_3.value in graph_type:
             obj_guess_optim,closest_map_optim = get_type33_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
         if QuerDAG.TYPE4_3.value in graph_type:
-            obj_guess_optim,closest_map_optim = get_type43_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm='min')
+            obj_guess_optim,closest_map_optim = get_type43_graph_optimization(kbc_path, dataset, dataset_mode, similarity_metric ='l2', t_norm='min')
 
         best_candidates = exhaustive_objective_search(t_norm, graph_type )
 
@@ -465,7 +453,7 @@ if __name__ == "__main__":
             ans = optimize_intersections(QuerDAG.TYPE2_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE1_3_joint.value == args.chain_type:
-            ans =  get_type13_graph_optimizaton_joint(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+            ans = get_type13_graph_optimizaton_joint(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE1_3.value == args.chain_type:
             ans = optimize_chains(QuerDAG.TYPE1_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
@@ -474,9 +462,9 @@ if __name__ == "__main__":
             ans = optimize_intersections(QuerDAG.TYPE2_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE3_3.value == args.chain_type:
-            ans =  get_type33_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+            ans = get_type33_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE4_3.value == args.chain_type:
-            ans =  get_type43_graph_optimizaton(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+            ans = get_type43_graph_optimization(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
         if 'e' == args.chain_type:
             ans = exhaustive_search_comparison(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, '1_2')
