@@ -1,5 +1,6 @@
 import argparse
 import pickle
+import os.path as osp
 
 import torch
 
@@ -101,7 +102,9 @@ def optimize_intersections(query_type, kbc_path, dataset_hard, dataset_complete,
         test_ans_hard = env.target_ids_hard
         test_ans = env.target_ids_complete
 
-        scores = kbc.model.optimize_intersections(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
+        scores = kbc.model.optimize_intersections(chains, kbc.regularizer, max_steps=1000,
+                                                  similarity_metric=similarity_metric, t_norm=t_norm,
+                                                  disjunctive=query_type == QuerDAG.TYPE2_2u.value)
 
         print('Evaluating metrics')
         metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
@@ -373,13 +376,14 @@ def exhaustive_search_comparison(kbc_path, dataset, dataset_mode, similarity_met
 
 if __name__ == "__main__":
 
-    big_datasets = ['Bio','FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
+    big_datasets = ['Bio', 'FB15k-237', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
     datasets = big_datasets
     dataset_modes = ['valid', 'test', 'train']
     similarity_metrics = ['l2', 'Eculidian', 'cosine']
 
-    chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
-    QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
+    chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value,
+    QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e',
+                   QuerDAG.TYPE2_2u.value]
 
     t_norms = ['min','product']
 
@@ -422,20 +426,22 @@ if __name__ == "__main__":
 
     if QuerDAG.TYPE1_1.value in args.chain_type:
         obj_guess, closest_map =  get_optimization(args.model_path, args.dataset, args.dataset_mode, args.similarity_metric)
-
     else:
 
-        data_hard_path = args.dataset + '_hard.pkl'
-        data_complete_path = args.dataset + '_complete.pkl'
+        data_hard_path = osp.join('data', args.dataset, args.dataset + '_hard.pkl')
+        data_complete_path = osp.join('data', args.dataset, args.dataset + '_complete.pkl')
 
         data_hard = pickle.load(open(data_hard_path, 'rb'))
         data_complete = pickle.load(open(data_complete_path, 'rb'))
 
-        if QuerDAG.TYPE1_2.value in args.chain_type:
+        if QuerDAG.TYPE1_2.value == args.chain_type:
             ans = optimize_chains(QuerDAG.TYPE1_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        if QuerDAG.TYPE2_2.value in args.chain_type:
+        if QuerDAG.TYPE2_2.value == args.chain_type:
             ans = optimize_intersections(QuerDAG.TYPE2_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+
+        if QuerDAG.TYPE2_2u.value == args.chain_type:
+            ans = optimize_intersections(QuerDAG.TYPE2_2u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
         if QuerDAG.TYPE1_3_joint.value == args.chain_type:
             ans = get_type13_graph_optimizaton_joint(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)

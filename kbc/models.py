@@ -318,7 +318,8 @@ class KBCModel(nn.Module, ABC):
 		return scores
 
 	def optimize_intersections(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-							   max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
+							   max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
+							   disjunctive=False):
 		try:
 			if len(chains) == 2:
 				raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_2.value)
@@ -352,6 +353,10 @@ class KBCModel(nn.Module, ABC):
 						atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
 
 					t_norm = torch.prod(atoms, dim=1)
+
+					if disjunctive:
+						t_norm = torch.sum(atoms, dim=1) - t_norm
+
 					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()
