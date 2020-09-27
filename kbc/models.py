@@ -168,7 +168,7 @@ class KBCModel(nn.Module, ABC):
 
 		return obj_guess, closest_map, indices_rankedby_distances
 
-	def __get_chains__(self, chains:List , graph_type:str = QuerDAG.TYPE1_2.value):
+	def __get_chains__(self, chains: List, graph_type: str = QuerDAG.TYPE1_2.value):
 		try:
 			if '2' in graph_type[-1]:
 				chain1, chain2 = chains
@@ -180,9 +180,8 @@ class KBCModel(nn.Module, ABC):
 				rel_1 = chain1[1]
 
 				rel_2 = chain2[1]
-				rhs_2 = chain2[2]
 
-				raw_chain = [lhs_1, rel_1, rel_2, rhs_2]
+				raw_chain = [lhs_1, rel_1, rel_2]
 
 			elif QuerDAG.TYPE2_2.value in graph_type:
 				lhs_1 = chain1[0]
@@ -196,15 +195,12 @@ class KBCModel(nn.Module, ABC):
 			elif QuerDAG.TYPE1_3.value in graph_type:
 				lhs_1 = chain1[0]
 				rel_1 = chain1[1]
-				rhs_1 = chain1[2]
 
-				lhs_2 = chain2[0]
 				rel_2 = chain2[1]
 
-				rel_3 = chain3[1]
-				rhs_3 = chain3[2]
+				rhs_3 = chain3[1]
 
-				raw_chain = [lhs_1, rel_1, rhs_1, lhs_2, rel_2, rel_3, rhs_3]
+				raw_chain = [lhs_1, rel_1, rel_2, rhs_3]
 
 			elif QuerDAG.TYPE2_3.value in graph_type or QuerDAG.TYPE3_3.value in graph_type:
 				lhs_1 = chain1[0]
@@ -237,84 +233,74 @@ class KBCModel(nn.Module, ABC):
 		return raw_chain
 
 
-	def type1_2chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
-							max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+	def optimize_chains(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+						max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
 		try:
+			if len(chains) == 2:
+				lhs_1, rel_1, rel_2 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE1_2.value)
+			elif len(chains) == 3:
+				lhs_1, rel_1, rel_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE1_3.value)
+			else:
+				raise ValueError(f'Invalid number of chains: {len(chains)}')
 
-			lhs_1,rel_1,rel_2,rhs_2 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE1_2.value)
-			obj_guess = torch.rand(rhs_2.shape, requires_grad=True, device=rhs_2.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-			obj_guess = obj_guess.clone().detach().requires_grad_(True).to(rhs_2.device)
+			obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			obj_guess_2 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			params = [obj_guess_1, obj_guess_2]
+			if len(chains) == 3:
+				obj_guess_3 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+				params.append(obj_guess_3)
+			optimizer = optim.Adam(params, lr=0.1)
 
-
-			optimizer = optim.Adam([obj_guess], lr=0.1)
-
-			prev_loss =  torch.tensor([1000.], dtype = torch.float)
-			loss = torch.tensor([999.],dtype=torch.float)
-
+			prev_loss_value = 1000
+			loss_value = 999
 			losses = []
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+				i = 0
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-30:
+					prev_loss_value = loss_value
 
-				i =1
-				while i <= max_steps and (prev_loss - loss)>1e-30:
+					score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
+					score_2, factors_2 = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
+					factors = [factors_1[2], factors_2[2]]
 
-					prev_loss = loss.clone()
+					atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
 
-					l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
-					score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess))
+					if len(chains) == 3:
+						score_3, factors_3 = self.score_emb(obj_guess_2, rel_3, obj_guess_3)
+						factors.append(factors_3[2])
+						atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
 
+					guess_regularizer = regularizer(factors)
 
-					l_reg_2 = regularizer.forward((obj_guess, rel_2, rhs_2))
-					score_2 = -(self.score_emb(obj_guess, rel_2, rhs_2))
-
-
-					if 'min' in t_norm.lower():
-						loss = torch.min(score_1,score_2) - (-l_reg_1 - l_reg_2)
-					elif 'prod' in t_norm.lower():
-						loss = (score_1 +l_reg_1) * (score_2 + l_reg_2)
+					t_norm = torch.prod(atoms, dim=1)
+					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()
-
 					loss.backward()
 					optimizer.step()
 
-					i+=1
+					i += 1
 					bar.update(1)
 					bar.set_postfix(loss=f'{loss.item():.6f}')
 
-					losses.append(loss.item())
+					loss_value = loss.item()
+					losses.append(loss_value)
 
 				if i != max_steps:
-					bar.update(max_steps-i +1)
-					print("\n\n Search converged early after {} iterations".format(i))
+					bar.update(max_steps - i + 1)
+					bar.close()
+					print(
+						"Search converged early after {} iterations".format(i))
 
-
-				torch.cuda.empty_cache()
-				lhs_1 = None
-				rel_1 = None
-
-				rel_2 = None
-				rhs_2 = None
-
-				torch.cuda.empty_cache()
-				gc.collect()
-
-				#print(losses)
-
-				if 'cp' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-				elif 'complex' in self.model_type().lower():
-					print(self.embeddings[0].weight.data.shape)
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-				else:
-					print("Choose model type from cp or complex please")
-					raise
+				with torch.no_grad():
+					scores = self.__compute_similarities__(obj_guess_2)
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
 			return None
 
-		return obj_guess, closest_map, indices_rankedby_distances
+		return scores
 
 	def optimize_intersections(self, chains: List, regularizer: Regularizer, candidates: int = 1,
 							   max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
@@ -333,7 +319,6 @@ class KBCModel(nn.Module, ABC):
 
 			prev_loss_value = 1000
 			loss_value = 999
-
 			losses = []
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
