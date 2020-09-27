@@ -14,6 +14,10 @@ import numpy as np
 
 from collections import defaultdict
 
+from kbc.chain_dataset import ChaineDataset
+from kbc.chain_dataset import Chain
+from kbc.chain_dataset import save_chain_data
+
 
 def prepare_dataset(path):
     """
@@ -140,11 +144,205 @@ def prepare_dataset(path):
     out.close()
 
 
+translator_dict = {'1c': '1chain1', '1c_hard': '1chain1_hard',
+                   '2c': '1chain2', '2c_hard': '1chain2_hard',
+                   '3c': '1chain3', '3c_hard': '1chain3_hard',
+                   '2i': '2chain2', '2i_hard': '2chain2_hard',
+                   'ci': '3chain3', 'ci_hard': '3chain3_hard',
+                   '3i': '2chain3', '3i_hard': '2chain3_hard',
+                   'ic': '4chain3', 'ic_hard': '4chain3_hard',
+                   '2u': '2chain2u',
+                   'uc': '4chain3u'}
+
+def prepare_q2b_dataset(path):
+    files = [i for i in os.listdir(path) if os.path.isfile(os.path.join(path, i)) and 'test_ans' in i]
+
+    dataset_name = os.path.basename(path)
+
+    data_hard = get_hard_dataset(path, files, mode='hard')
+    save_chain_data(path, dataset_name + '_hard', data_hard)
+
+    data_complete = get_hard_dataset(path, files, mode='complete')
+    save_chain_data(path, dataset_name + '_complete', data_complete)
+
+def get_hard_dataset(path, files, mode='hard'):
+    chain_dataset = None
+    try:
+        chain_dataset = ChaineDataset(None)
+
+        for file in files:
+            if 'hard' in mode:
+                check = 'hard' in file
+            else:
+                check = not ('hard' in file)
+
+            if check:
+                with open(os.path.join(path, file), 'rb') as c:
+                    contents = pickle.load(c)
+
+                if 'hard' in mode:
+                    chain_type = file.split('.')[0].split('_')[-2]
+                else:
+                    chain_type = file.split('.')[0].split('_')[-1]
+
+                chain_type_cast = translator_dict[chain_type]
+
+                chains = get_sampled_chain(chain_type_cast, contents)
+
+                if '1chain2' == chain_type_cast:
+                    chain_dataset.type1_2chain = chains
+                elif '1chain3' == chain_type_cast:
+                    chain_dataset.type1_3chain = chains
+                elif '2chain2' == chain_type_cast:
+                    chain_dataset.type2_2chain = chains
+                elif '2chain3' == chain_type_cast:
+                    chain_dataset.type2_3chain = chains
+                elif '3chain3' == chain_type_cast:
+                    chain_dataset.type3_3chain = chains
+                elif '4chain3' == chain_type_cast:
+                    chain_dataset.type4_3chain = chains
+                elif '2chain2u' == chain_type_cast:
+                    chain_dataset.type2_2chain_u = chains
+                elif '4chain3u' == chain_type_cast:
+                    chain_dataset.type4_3chain_u = chains
+
+    except RuntimeError as e:
+        print("Cannot cast dataset with error: ", e)
+        return chain_dataset
+    return chain_dataset
+
+
+def get_sampled_chain(chain_type_cast, contents):
+    chain_array = []
+    try:
+        for chain in contents:
+
+            new_chain = Chain()
+            targets = list(contents[chain])
+
+            if '1chain2' in chain_type_cast:
+                rels = chain[0][-1]
+                anchor = chain[0][0]
+
+                converted_chain = [ \
+                    [anchor, rels[0], -1], \
+                    [-1, rels[1], targets] \
+                    ]
+
+                new_chain.data['type'] = chain_type_cast
+                new_chain.data['raw_chain'] = converted_chain
+                new_chain.data['anchors'].append(anchor)
+
+                new_chain.data['optimisable'].append(-1)
+                new_chain.data['optimisable'] += targets
+
+                chain_array.append(new_chain)
+
+            if '1chain3' in chain_type_cast:
+                rels = chain[0][-1]
+                anchor = chain[0][0]
+
+                converted_chain = [ \
+                    [anchor, rels[0], -1], \
+                    [-1, rels[1], -2], \
+                    [-2, rels[2], targets] \
+                    ]
+
+                new_chain.data['type'] = chain_type_cast
+                new_chain.data['raw_chain'] = converted_chain
+                new_chain.data['anchors'].append(anchor)
+
+                new_chain.data['optimisable'].append(-1)
+                new_chain.data['optimisable'].append(-2)
+                new_chain.data['optimisable'] += targets
+
+                chain_array.append(new_chain)
+
+            if '2chain2' in chain_type_cast:
+                anchors = [chain[0][0], chain[1][0]]
+                rels = [chain[0][1][0], chain[1][1][0]]
+
+                converted_chain = [ \
+                    [anchors[0], rels[0], targets], \
+                    [anchors[1], rels[1], targets] \
+                    ]
+                new_chain.data['type'] = chain_type_cast
+                new_chain.data['raw_chain'] = converted_chain
+                new_chain.data['anchors'] += anchors
+
+                new_chain.data['optimisable'] += targets
+
+                chain_array.append(new_chain)
+
+            if '2chain3' in chain_type_cast:
+                #                 (90, (439,)), (2864, (145,)), (2620, (309,))): {92, 3647}
+                anchors = [chain[0][0], chain[1][0], chain[2][0]]
+                rels = [chain[0][1][0], chain[1][1][0], chain[2][1][0]]
+
+                converted_chain = [ \
+                    [anchors[0], rels[0], targets], \
+                    [anchors[1], rels[1], targets], \
+                    [anchors[2], rels[2], targets]
+                ]
+                new_chain.data['type'] = chain_type_cast
+                new_chain.data['raw_chain'] = converted_chain
+                new_chain.data['anchors'] += anchors
+                new_chain.data['optimisable'] += targets
+
+                chain_array.append(new_chain)
+
+            if '3chain3' in chain_type_cast:
+                anchors = [chain[0][0], chain[1][0]]
+                rels = list(chain[0][1]) + [chain[1][1][0]]
+
+                converted_chain = [ \
+                    [anchors[0], rels[0], -1], \
+                    [-1, rels[1], targets], \
+                    [anchors[1], rels[2], targets]
+                ]
+                new_chain.data['type'] = chain_type_cast
+                new_chain.data['raw_chain'] = converted_chain
+                new_chain.data['anchors'] += anchors
+                new_chain.data['optimisable'].append(-1)
+                new_chain.data['optimisable'] += targets
+
+                chain_array.append(new_chain)
+
+            if '4chain3' in chain_type_cast:
+                rels = [chain[0][1][0], chain[1][1][0], chain[-1]]
+                anchors = [chain[0][0], chain[1][0]]
+
+                converted_chain = [ \
+                    [anchors[0], rels[0], -1], \
+                    [anchors[1], rels[1], -1], \
+                    [-1, rels[2], targets]
+                ]
+
+                new_chain.data['type'] = chain_type_cast
+                new_chain.data['raw_chain'] = converted_chain
+                new_chain.data['anchors'] += anchors
+
+                new_chain.data['optimisable'].append(-1)
+                new_chain.data['optimisable'] += targets
+
+                chain_array.append(new_chain)
+
+            new_chain.data['targets'] = targets
+
+
+    except RuntimeError as e:
+        print("Cannot get sampled chains with error: ", e)
+        return chain_array
+
+    return chain_array
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description="Relational learning contraption"
+        description='Process datasets for link prediction and query answering'
     )
+    parser.add_argument('type', choices=['kbc', 'q2b'])
     parser.add_argument('data_path', help='Path containing triples for'
                                             ' training, validation, and test')
     args = parser.parse_args()
@@ -152,7 +350,10 @@ if __name__ == "__main__":
 
     print(f'Loading dataset from {data_path}')
     try:
-        prepare_dataset(data_path)
+        if args.type == 'kbc':
+            prepare_dataset(data_path)
+        elif args.type == 'q2b':
+            prepare_q2b_dataset(data_path)
     except OSError as e:
         if e.errno == errno.EEXIST:
             print(e)
