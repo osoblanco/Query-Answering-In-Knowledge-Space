@@ -405,7 +405,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
                 flattened_part3.append([part3[chain_iter][0],part3[chain_iter][1],-(chain_iter+1234)])
                 flattened_part2.append([part2[chain_iter][0],part2[chain_iter][1],-(chain_iter+1234)])
                 flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],-(chain_iter+1234)])
-                targets.append(part3[2])
+                targets.append(part3[chain_iter][2])
 
 
             part1 = flattened_part1
