@@ -1,5 +1,6 @@
 import argparse
 import pickle
+import json
 
 import torch
 
@@ -25,12 +26,20 @@ from kbc.metrics import evaluation
 
 
 
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min'):
+	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3']
+
+	for exp in experiments:
+		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp)
+
+		with open(f'{dataset_name}_{t_norm}_{exp}.json', 'w') as fp:
+		    json.dump(metrics, fp)
 
 
 def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2'):
+	metrics = {}
 	try:
 
-		#
 		# print(len(dataset_hard.type1_2chain))
 		# print(len(dataset_hard.type2_2chain))
 		# print(len(dataset_hard.type2_3chain))
@@ -41,31 +50,18 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 		env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 		env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
-		print(len(env.target_ids_hard))
 
 		if '1' in env.chain_instructions[-1][-1]:
 			part1, part2 = env.parts
 		elif '2' in env.chain_instructions[-1][-1]:
 			part1, part2, part3 = env.parts
 
-		# part1, part2, part3 = env.parts
+		kbc = env.kbc
 
-		# keys = env.keys
-		# target_ids,lhs_norm  = env.target_ids, env.lhs_norm
-		kbc, chains = env.kbc, env.chains
-		#
-
-		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, 2 ,similarity_metric = 'l2', t_norm = 'min' , batch_size = 2)
+		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, 3 ,similarity_metric = similarity_metric, t_norm = t_norm , batch_size = 4)
 		print(scores.shape)
 		torch.cuda.empty_cache()
-		# from utils import debug_memory
-		# import GPUtil
-		# debug_memory()
-		# GPUtil.showUtilization()
-		# #
-		# hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3])
 
-		# APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
 		queries = env.keys_hard
 		test_ans_hard = env.target_ids_hard
@@ -78,8 +74,8 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 
 	except RuntimeError as e:
 		print("Cannot answer the query with a Brute Force: ", e)
-		return None
-	return None
+		return metrics
+	return metrics
 
 
 if __name__ == "__main__":
@@ -136,4 +132,6 @@ if __name__ == "__main__":
 	data_hard = pickle.load(open(data_hard_path,'rb'))
 	data_complete = pickle.load(open(data_complete_path,'rb'))
 
-	query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
+	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
+
+	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, similarity_metric = 'l2', t_norm = args.t_norm)
