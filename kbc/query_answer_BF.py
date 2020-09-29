@@ -27,25 +27,21 @@ from kbc.metrics import evaluation
 
 
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min'):
-	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3']
+	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+	# experiments = ['2_2_disj', '4_3_disj']
+	# experiments = ['4_3_disj']
+	# experiments = ['1_3', '4_3']
 
 	for exp in experiments:
 		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp)
 
 		with open(f'{dataset_name}_{t_norm}_{exp}.json', 'w') as fp:
-		    json.dump(metrics, fp)
+			json.dump(metrics, fp)
 
 
 def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2'):
 	metrics = {}
 	try:
-
-		# print(len(dataset_hard.type1_2chain))
-		# print(len(dataset_hard.type2_2chain))
-		# print(len(dataset_hard.type2_3chain))
-		# print(len(dataset_hard.type1_3chain))
-		# print(len(dataset_hard.type3_3chain))
-		# print(len(dataset_hard.type4_3chain))
 
 		env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 		env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
@@ -67,7 +63,7 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 		test_ans_hard = env.target_ids_hard
 		test_ans = 	env.target_ids_complete
 		# scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
-        #
+		#
 		metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
 		print(metrics)
 
@@ -88,7 +84,7 @@ if __name__ == "__main__":
 	chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
 	QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
 
-	t_norms = ['min','product']
+	t_norms = ['min','max','product']
 
 	parser = argparse.ArgumentParser(
 	description="Query Answering BF namespace"

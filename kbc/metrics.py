@@ -132,9 +132,8 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
 		# 	if count > 5:
 		# 		break
 
-		for query_id, query in enumerate(tqdm(queries)):
-			with torch.no_grad():
-
+		with torch.no_grad():
+			for query_id, query in enumerate(tqdm(queries)):
 				score = scores[query_id]
 				score -= (torch.min(score) - 1)
 				ans = test_ans[query]
@@ -170,8 +169,6 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
 				ranking = (argsort == 0).nonzero()
 				ranking = ranking[:, 1]
 				ranking = ranking + 1
-
-
 
 				ans_vec = np.zeros(nentity)
 				ans_vec[ans_list] = 1

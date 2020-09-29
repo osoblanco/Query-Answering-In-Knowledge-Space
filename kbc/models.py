@@ -914,6 +914,15 @@ class KBCModel(nn.Module, ABC):
 			elif 'prod' in t_norm:
 				return tens_1 * tens_2
 
+	def t_conorm(self,
+			tens_1: Tensor,
+			tens_2: Tensor,
+			t_conorm: str = 'max',
+			) -> Tensor:
+			if 'max' in t_conorm:
+				return torch.max(tens_1, tens_2)
+			elif 'prod' in t_conorm:
+				return (tens_1+tens_2) - (tens_1 * tens_2)
 
 	def min_max_rescale(self,x):
 		return (x-torch.min(x))/(torch.max(x)- torch.min(x))
@@ -924,6 +933,11 @@ class KBCModel(nn.Module, ABC):
 
 		res = None
 		try:
+
+			if 'disj' in env.graph_type:
+				objective = self.t_conorm
+			else:
+				objective = self.t_norm
 
 			chains, chain_instructions = env.chains, env.chain_instructions
 
@@ -982,15 +996,17 @@ class KBCModel(nn.Module, ABC):
 
 									# [Num_queries * Candidates^K]
 									z_scores_1d = z_scores.view(-1)
-									#z_scores_1d = torch.sigmoid(z_scores_1d)
+									if 'disj' in env.graph_type:
+										z_scores_1d = self.min_max_rescale(z_scores_1d)
+
 									# B * S
 									nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
 									nb_branches = nb_sources // batch_size
 									if not last_step:
-										batch_scores = z_scores_1d if batch_scores is None else self.t_norm(z_scores_1d, batch_scores.view(-1, 1).repeat(1, candidates).view(-1), t_norm)
+										batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, candidates).view(-1), t_norm)
 									else:
 										nb_ent = rhs_3d.shape[1]
-										batch_scores = z_scores_1d if batch_scores is None else self.t_norm(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
+										batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
 
 
 									candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
@@ -1041,9 +1057,10 @@ class KBCModel(nn.Module, ABC):
 									z_scores = self.score_fixed(rel, lhs, rhs, candidates)
 
 									z_scores_1d = z_scores.view(-1)
-									#z_scores_1d = torch.sigmoid(z_scores_1d)
+									if 'disj' in env.graph_type:
+										z_scores_1d = self.min_max_rescale(z_scores_1d)
 
-									batch_scores = z_scores_1d if batch_scores is None else self.t_norm(z_scores_1d, batch_scores, t_norm)
+									batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores, t_norm)
 
 									continue
 
@@ -1054,16 +1071,17 @@ class KBCModel(nn.Module, ABC):
 									# [B * Candidates^K] or [B, S-1, N]
 									z_scores_1d = z_scores.view(-1)
 									# print(z_scores_1d)
-									#z_scores_1d = torch.sigmoid(z_scores_1d)
+									if 'disj' in env.graph_type:
+										z_scores_1d = self.min_max_rescale(z_scores_1d)
 
 									nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
 									nb_branches = nb_sources // batch_size
 
 									if not last_step:
-										batch_scores = z_scores_1d if batch_scores is None else self.t_norm(z_scores_1d, batch_scores.view(-1, 1).repeat(1, candidates).view(-1), t_norm)
+										batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, candidates).view(-1), t_norm)
 									else:
 										nb_ent = rhs_3d.shape[1]
-										batch_scores = z_scores_1d if batch_scores is None else self.t_norm(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
+										batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
 
 									candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
 									candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
