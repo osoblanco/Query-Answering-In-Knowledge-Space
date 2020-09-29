@@ -161,16 +161,19 @@ translator_dict = {'1c': '1chain1', '1c_hard': '1chain1_hard',
                    '2u': '2chain2u',
                    'uc': '4chain3u'}
 
-def prepare_q2b_dataset(path):
-    files = [i for i in os.listdir(path) if os.path.isfile(os.path.join(path, i)) and 'test_ans' in i]
+
+def prepare_q2b_dataset(path, split):
+    split_check = f'{split}_ans'
+    files = [i for i in os.listdir(path) if os.path.isfile(os.path.join(path, i)) and split_check in i]
 
     dataset_name = os.path.basename(path)
 
     data_hard = get_hard_dataset(path, files, mode='hard')
-    save_chain_data(path, dataset_name + '_hard', data_hard)
+    save_chain_data(path, dataset_name + f'_{split}_hard', data_hard)
 
     data_complete = get_hard_dataset(path, files, mode='complete')
-    save_chain_data(path, dataset_name + '_complete', data_complete)
+    save_chain_data(path, dataset_name + f'_{split}_complete', data_complete)
+
 
 def get_hard_dataset(path, files, mode='hard'):
     chain_dataset = None
@@ -413,7 +416,9 @@ if __name__ == "__main__":
     )
     parser.add_argument('type', choices=['kbc', 'q2b', 'nell'])
     parser.add_argument('data_path', help='Path containing triples for'
-                                            ' training, validation, and test')
+                                          ' training, validation, and test')
+    parser.add_argument('--split', choices=['train', 'valid', 'test'],
+                        default='test')
     args = parser.parse_args()
     data_path = args.data_path
 
@@ -422,7 +427,7 @@ if __name__ == "__main__":
         if args.type == 'kbc':
             prepare_dataset(data_path)
         elif args.type == 'q2b':
-            prepare_q2b_dataset(data_path)
+            prepare_q2b_dataset(data_path, args.split)
         elif args.type == 'nell':
             prepare_nell_dataset(data_path)
     except OSError as e:
