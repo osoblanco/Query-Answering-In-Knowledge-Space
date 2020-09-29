@@ -267,7 +267,7 @@ class KBCModel(nn.Module, ABC):
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 				i = 0
-				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-30:
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
 					prev_loss_value = loss_value
 
 					score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
@@ -309,7 +309,16 @@ class KBCModel(nn.Module, ABC):
 					guess = obj_guess_3
 
 				with torch.no_grad():
-					scores = self.__compute_similarities__(guess)
+					if len(chains) == 2:
+						score_2 = self.forward_emb(obj_guess_1, rel_2)
+						atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2), dim=-1))
+					else:
+						score_3 = self.forward_emb(obj_guess_2, rel_3)
+						atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3),dim=-1))
+
+					t_norm = torch.prod(atoms, dim=-1)
+
+					scores = t_norm
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
@@ -339,7 +348,7 @@ class KBCModel(nn.Module, ABC):
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 				i = 0
-				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-30:
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
 					prev_loss_value = loss_value
 
 					score_1, factors = self.score_emb(lhs_1, rel_1, obj_guess)
@@ -376,7 +385,19 @@ class KBCModel(nn.Module, ABC):
 					print("Search converged early after {} iterations".format(i))
 
 				with torch.no_grad():
-					scores = self.__compute_similarities__(obj_guess)
+					score_1 = self.forward_emb(lhs_1, rel_1)
+					score_2 = self.forward_emb(lhs_2, rel_2)
+					atoms = torch.stack((score_1, score_2), dim=-1)
+
+					if len(chains) == 3:
+						score_3 = self.forward_emb(lhs_3, rel_3)
+						atoms = torch.cat((atoms, score_3.unsqueeze(-1)), dim=-1)
+
+					t_norm = torch.prod(atoms, dim=-1)
+					if disjunctive:
+						scores = torch.sum(atoms, dim=-1) - t_norm
+					else:
+						scores = t_norm
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
@@ -656,7 +677,7 @@ class KBCModel(nn.Module, ABC):
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 				i = 0
-				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-30:
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
 					prev_loss_value = loss_value
 
 					score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
@@ -689,7 +710,14 @@ class KBCModel(nn.Module, ABC):
 						"Search converged early after {} iterations".format(i))
 
 				with torch.no_grad():
-					scores = self.__compute_similarities__(obj_guess_2)
+					score_2 = self.forward_emb(obj_guess_1, rel_2)
+					score_3 = self.forward_emb(lhs_2, rel_3)
+					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2, score_3), dim=-1))
+
+					t_norm = torch.prod(atoms, dim=-1)
+
+					scores = t_norm
+
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
@@ -713,7 +741,7 @@ class KBCModel(nn.Module, ABC):
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
 				i = 0
-				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-30:
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
 					prev_loss_value = loss_value
 
 					score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
@@ -751,7 +779,12 @@ class KBCModel(nn.Module, ABC):
 						"Search converged early after {} iterations".format(i))
 
 				with torch.no_grad():
-					scores = self.__compute_similarities__(obj_guess_2)
+					score_3 = self.forward_emb(obj_guess_1, rel_3)
+					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
+
+					t_norm = torch.prod(atoms, dim=-1)
+
+					scores = t_norm
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
@@ -1171,6 +1204,14 @@ class ComplEx(KBCModel):
 			torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
 		)
 
+	def forward_emb(self, lhs, rel):
+		lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+		rel = rel[:, :self.rank], rel[:, self.rank:]
+
+		to_score = self.embeddings[0].weight
+		to_score = to_score[:, :self.rank], to_score[:, self.rank:]
+		return ((lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
+				(lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1))
 
 	def get_rhs(self, chunk_begin: int, chunk_size: int):
 		return self.embeddings[0].weight.data[

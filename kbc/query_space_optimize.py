@@ -105,7 +105,7 @@ def optimize_intersections(query_type, kbc_path, dataset_hard, dataset_complete,
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer, max_steps=1000,
                                                   similarity_metric=similarity_metric, t_norm=t_norm,
                                                   disjunctive=query_type == QuerDAG.TYPE2_2u.value)
-
+        torch.cuda.empty_cache()
         print('Evaluating metrics')
         metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
         print(metrics)
@@ -343,7 +343,7 @@ def get_type33_graph_optimization(kbc_path, dataset_hard, dataset_complete, simi
         test_ans = env.target_ids_complete
 
         scores = kbc.model.type3_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
-
+        torch.cuda.empty_cache()
         print('Evaluating metrics')
         metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
         print(metrics)
@@ -377,8 +377,7 @@ def exhaustive_search_comparison(kbc_path, dataset, dataset_mode, similarity_met
 
 if __name__ == "__main__":
 
-    big_datasets = ['Bio', 'FB15k-237', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
-    datasets = big_datasets
+    datasets = ['FB15k', 'FB15k-237', 'NELL']
     dataset_modes = ['valid', 'test', 'train']
     similarity_metrics = ['l2', 'Eculidian', 'cosine']
 
@@ -386,7 +385,7 @@ if __name__ == "__main__":
     QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e',
                    QuerDAG.TYPE2_2u.value, QuerDAG.TYPE4_3u.value]
 
-    t_norms = ['min','product']
+    t_norms = ['min', 'product']
 
     parser = argparse.ArgumentParser(
     description="Query space optimizer namespace"
@@ -423,42 +422,38 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    mode = args.dataset_mode
 
+    data_hard_path = osp.join('data', args.dataset, f'{args.dataset}_{mode}_hard.pkl')
+    data_complete_path = osp.join('data', args.dataset, f'{args.dataset}_{mode}_complete.pkl')
 
-    if QuerDAG.TYPE1_1.value in args.chain_type:
-        obj_guess, closest_map =  get_optimization(args.model_path, args.dataset, args.dataset_mode, args.similarity_metric)
-    else:
+    data_hard = pickle.load(open(data_hard_path, 'rb'))
+    data_complete = pickle.load(open(data_complete_path, 'rb'))
 
-        data_hard_path = osp.join('data', args.dataset, args.dataset + '_hard.pkl')
-        data_complete_path = osp.join('data', args.dataset, args.dataset + '_complete.pkl')
+    if QuerDAG.TYPE1_2.value == args.chain_type:
+        ans = optimize_chains(QuerDAG.TYPE1_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        data_hard = pickle.load(open(data_hard_path, 'rb'))
-        data_complete = pickle.load(open(data_complete_path, 'rb'))
+    if QuerDAG.TYPE2_2.value == args.chain_type:
+        ans = optimize_intersections(QuerDAG.TYPE2_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        if QuerDAG.TYPE1_2.value == args.chain_type:
-            ans = optimize_chains(QuerDAG.TYPE1_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+    if QuerDAG.TYPE2_2u.value == args.chain_type:
+        ans = optimize_intersections(QuerDAG.TYPE2_2u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        if QuerDAG.TYPE2_2.value == args.chain_type:
-            ans = optimize_intersections(QuerDAG.TYPE2_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+    if QuerDAG.TYPE1_3_joint.value == args.chain_type:
+        ans = get_type13_graph_optimizaton_joint(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        if QuerDAG.TYPE2_2u.value == args.chain_type:
-            ans = optimize_intersections(QuerDAG.TYPE2_2u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+    if QuerDAG.TYPE1_3.value == args.chain_type:
+        ans = optimize_chains(QuerDAG.TYPE1_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        if QuerDAG.TYPE1_3_joint.value == args.chain_type:
-            ans = get_type13_graph_optimizaton_joint(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+    if QuerDAG.TYPE2_3.value == args.chain_type:
+        ans = optimize_intersections(QuerDAG.TYPE2_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        if QuerDAG.TYPE1_3.value == args.chain_type:
-            ans = optimize_chains(QuerDAG.TYPE1_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+    if QuerDAG.TYPE3_3.value == args.chain_type:
+        ans = get_type33_graph_optimization(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
 
-        if QuerDAG.TYPE2_3.value == args.chain_type:
-            ans = optimize_intersections(QuerDAG.TYPE2_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
-
-        if QuerDAG.TYPE3_3.value == args.chain_type:
-            ans = get_type33_graph_optimization(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
-
-        if QuerDAG.TYPE4_3.value == args.chain_type:
-            ans = get_type43_graph_optimization(QuerDAG.TYPE4_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
-        if QuerDAG.TYPE4_3u.value == args.chain_type:
-            ans = get_type43_graph_optimization(QuerDAG.TYPE4_3u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
-        if 'e' == args.chain_type:
-            ans = exhaustive_search_comparison(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, '1_2')
+    if QuerDAG.TYPE4_3.value == args.chain_type:
+        ans = get_type43_graph_optimization(QuerDAG.TYPE4_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+    if QuerDAG.TYPE4_3u.value == args.chain_type:
+        ans = get_type43_graph_optimization(QuerDAG.TYPE4_3u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm)
+    if 'e' == args.chain_type:
+        ans = exhaustive_search_comparison(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, '1_2')
