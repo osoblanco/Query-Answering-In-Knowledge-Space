@@ -19,7 +19,7 @@ def summary(configuration):
 
 
 def to_cmd(c, _path=None):
-    command = f'PYTHONPATH=. python3 -m kbc.learn kbc/data/NELL --model ComplEx --max_epochs {e} --model_save_schedule 10 --valid 1 --reg {n3} --batch_size {b} --rank {k} '
+    command = f'PYTHONPATH=. python3 -m kbc.learn kbc/data/NELL --model ComplEx --max_epochs {c["e"]} --model_save_schedule 10 --valid 1 --reg {c["n3"]} --batch_size {c["b"]} --rank {c["k"]}'
     return command
 
 
@@ -29,14 +29,14 @@ def to_logfile(c, path):
 
 
 def main(argv):
-    hyp_space_1 = dict(
+    hyp_space = dict(
         k=[500],
         b=[500, 1024],
         e=[100],
         n3=[1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 5e-1]
     )
 
-    configurations = list(cartesian_product(hyp_space_1))
+    configurations = list(cartesian_product(hyp_space))
 
     path = 'logs/nell/nell_beaker_v1'
     is_rc = False
