@@ -19,6 +19,19 @@ from kbc.chain_dataset import Chain
 from kbc.chain_dataset import save_chain_data
 
 
+def load_q2b_maps(path):
+    """Read entity and relation IDs from q2b mappings"""
+    q2b_maps = ['ind2ent.pkl', 'ind2rel.pkl']
+    with open(os.path.join(path, q2b_maps[0]), 'rb') as f:
+        ind2ent = pickle.load(f)
+        entities_to_id = {ent: i for i, ent in ind2ent.items()}
+    with open(os.path.join(path, q2b_maps[1]), 'rb') as f:
+        ind2rel = pickle.load(f)
+        relations_to_id = {rel: i for i, rel in ind2rel.items()}
+
+    return entities_to_id, relations_to_id
+
+
 def prepare_dataset(path):
     """
     Given a path to a folder containing tab separated files :
@@ -35,13 +48,7 @@ def prepare_dataset(path):
 
     q2b_maps = ['ind2ent.pkl', 'ind2rel.pkl']
     if all([os.path.exists(os.path.join(path, f)) for f in q2b_maps]):
-        # Read IDs from q2b mappings
-        with open(os.path.join(path, q2b_maps[0]), 'rb') as f:
-            ind2ent = pickle.load(f)
-            entities_to_id = {ent: i for i, ent in ind2ent.items()}
-        with open(os.path.join(path, q2b_maps[1]), 'rb') as f:
-            ind2rel = pickle.load(f)
-            relations_to_id = {rel: i for i, rel in ind2rel.items()}
+        entities_to_id, relations_to_id = load_q2b_maps(path)
 
         # Create IDs for the remaining entities and relations (not used in q2b)
         max_ent_id = max(entities_to_id.values())
@@ -337,12 +344,74 @@ def get_sampled_chain(chain_type_cast, contents):
     return chain_array
 
 
+def prepare_nell_dataset(path):
+    splits = ['train', 'valid', 'test']
+
+    entities_to_id, relations_to_id = load_q2b_maps(path)
+    # String identifiers are not used in Q2B's NELL
+    entities_to_id = {e: e for e in entities_to_id}
+    relations_to_id = {r: r for r in relations_to_id}
+
+    out_path = os.path.join(path, 'kbc_data')
+
+    if os.path.exists(out_path):
+        shutil.rmtree(out_path)
+    os.makedirs(out_path)
+
+    for (dic, f) in zip([entities_to_id, relations_to_id], ['ent_id', 'rel_id']):
+        f = open(os.path.join(out_path, f'{f}.pickle'), 'wb')
+        pickle.dump(dic, f)
+        f.close()
+
+    to_skip = {'lhs': defaultdict(set), 'rhs': defaultdict(set)}
+
+    for s in splits:
+        count = 0
+        hard_postfix = '_hard' if s in ['valid', 'test'] else ''
+        pickle_path = os.path.join(path, f'{s}_ans_1c{hard_postfix}.pkl')
+        with open(pickle_path, 'rb') as f:
+            triples_dict = pickle.load(f)
+
+        examples = []
+        for head_rel, all_tails in triples_dict.items():
+            head = head_rel[0][0]
+            rel = head_rel[0][1][0]
+
+            # In Q2B's NELL, normal relations are even, inverses are odd
+            if rel % 2 == 0:
+                inv_rel = rel + 1
+            else:
+                inv_rel = rel - 1
+
+            for tail in all_tails:
+                examples.append([head, rel, tail])
+
+                to_skip['rhs'][(head, rel)].add(tail)
+                to_skip['lhs'][(tail, inv_rel)].add(head)
+
+                count += 1
+
+        out = open(os.path.join(out_path, s + '.txt.pickle'), 'wb')
+        pickle.dump(np.array(examples).astype('uint64'), out)
+        out.close()
+
+        print(f'Saved {count:,} {s} triples')
+
+    to_skip_final = {'lhs': {}, 'rhs': {}}
+    for kk, skip in to_skip.items():
+        for k, v in skip.items():
+            to_skip_final[kk][k] = sorted(list(v))
+
+    with open(os.path.join(out_path, 'to_skip.pickle'), 'wb') as out:
+        pickle.dump(to_skip_final, out)
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
         description='Process datasets for link prediction and query answering'
     )
-    parser.add_argument('type', choices=['kbc', 'q2b'])
+    parser.add_argument('type', choices=['kbc', 'q2b', 'nell'])
     parser.add_argument('data_path', help='Path containing triples for'
                                             ' training, validation, and test')
     args = parser.parse_args()
@@ -354,6 +423,8 @@ if __name__ == "__main__":
             prepare_dataset(data_path)
         elif args.type == 'q2b':
             prepare_q2b_dataset(data_path)
+        elif args.type == 'nell':
+            prepare_nell_dataset(data_path)
     except OSError as e:
         if e.errno == errno.EEXIST:
             print(e)
