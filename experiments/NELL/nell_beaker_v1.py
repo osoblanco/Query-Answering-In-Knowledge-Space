@@ -19,7 +19,7 @@ def summary(configuration):
 
 
 def to_cmd(c, _path=None):
-    command = f'PYTHONPATH=. PYTHONPATH=. python3 -m kbc.learn kbc/data/NELL --model ComplEx --max_epochs {e} --model_save_schedule 10 --valid 1 --reg {n3} --batch_size {b} --rank {k} '
+    command = f'PYTHONPATH=. python3 -m kbc.learn kbc/data/NELL --model ComplEx --max_epochs {e} --model_save_schedule 10 --valid 1 --reg {n3} --batch_size {b} --rank {k} '
     return command
 
 
@@ -87,7 +87,7 @@ conda activate gpu
 export LANG="en_US.utf8"
 export LANGUAGE="en_US:en"
 
-cd $HOME/workspace/kbc
+cd $HOME/workspace/Query-Answering-In-Knowledge-Space
 
 """.format(nb_jobs)
 
