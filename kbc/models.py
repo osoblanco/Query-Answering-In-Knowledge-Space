@@ -389,6 +389,9 @@ class KBCModel(nn.Module, ABC):
 					score_2 = self.forward_emb(lhs_2, rel_2)
 					atoms = torch.stack((score_1, score_2), dim=-1)
 
+					if disjunctive:
+						atoms = torch.sigmoid(atoms)
+
 					if len(chains) == 3:
 						score_3 = self.forward_emb(lhs_3, rel_3)
 						atoms = torch.cat((atoms, score_3.unsqueeze(-1)), dim=-1)
@@ -780,10 +783,12 @@ class KBCModel(nn.Module, ABC):
 
 				with torch.no_grad():
 					score_3 = self.forward_emb(obj_guess_1, rel_3)
-					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
+					if not disjunctive:
+						atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
+					else:
+						atoms = torch.stack((t_conorm.expand_as(score_3), torch.sigmoid(score_3)), dim=-1)
 
 					t_norm = torch.prod(atoms, dim=-1)
-
 					scores = t_norm
 
 		except RuntimeError as e:
