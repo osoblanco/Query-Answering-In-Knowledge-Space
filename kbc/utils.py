@@ -68,6 +68,20 @@ def create_instructions(chains):
                     path_stack.pop()
                     continue
 
+        ans = []
+        for inst in instructions:
+            if ans:
+
+                if 'inter' in inst and ('inter' in ans[-1]):
+                        last_ind = inst.split("_")[-1]
+                        ans[-1] = ans[-1]+f"_{last_ind}"
+                else:
+                    ans.append(inst)
+
+            else:
+                ans.append(inst)
+
+        instructions = ans
 
     except RuntimeError as e:
         print(e)

@@ -960,8 +960,6 @@ class KBCModel(nn.Module, ABC):
 				batch_size = batch[1] - batch[0]
 				torch.cuda.empty_cache()
 
-
-				["hop_0_1", "hop_1_2"]
 				for inst_ind, inst in enumerate(chain_instructions):
 					with torch.no_grad():
 						if 'hop' in inst:
@@ -997,7 +995,7 @@ class KBCModel(nn.Module, ABC):
 									# [Num_queries * Candidates^K]
 									z_scores_1d = z_scores.view(-1)
 									if 'disj' in env.graph_type:
-										z_scores_1d = self.min_max_rescale(z_scores_1d)
+										z_scores_1d = torch.sigmoid(z_scores_1d)
 
 									# B * S
 									nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
@@ -1027,7 +1025,6 @@ class KBCModel(nn.Module, ABC):
 								# torch.cuda.empty_cache()
 
 						elif 'inter' in inst:
-
 							ind_1 = int(inst.split("_")[-2])
 							ind_2 = int(inst.split("_")[-1])
 
@@ -1058,7 +1055,7 @@ class KBCModel(nn.Module, ABC):
 
 									z_scores_1d = z_scores.view(-1)
 									if 'disj' in env.graph_type:
-										z_scores_1d = self.min_max_rescale(z_scores_1d)
+										z_scores_1d = torch.sigmoid(z_scores_1d)
 
 									batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores, t_norm)
 
@@ -1072,7 +1069,7 @@ class KBCModel(nn.Module, ABC):
 									z_scores_1d = z_scores.view(-1)
 									# print(z_scores_1d)
 									if 'disj' in env.graph_type:
-										z_scores_1d = self.min_max_rescale(z_scores_1d)
+										z_scores_1d = torch.sigmoid(z_scores_1d)
 
 									nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
 									nb_branches = nb_sources // batch_size

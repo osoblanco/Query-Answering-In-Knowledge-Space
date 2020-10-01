@@ -26,20 +26,21 @@ from kbc.metrics import evaluation
 
 
 
-def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min'):
-	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min', candidates = 3):
+	experiments = ['1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
 	# experiments = ['1_3', '4_3']
+	# experiments = ['2_3']
 
 	for exp in experiments:
-		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp)
+		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp, candidates)
 
 		with open(f'{dataset_name}_{t_norm}_{exp}.json', 'w') as fp:
 			json.dump(metrics, fp)
 
 
-def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2'):
+def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2', candidates = 3):
 	metrics = {}
 	try:
 
@@ -54,7 +55,7 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 
 		kbc = env.kbc
 
-		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, 3 ,similarity_metric = similarity_metric, t_norm = t_norm , batch_size = 4)
+		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, candidates ,similarity_metric = similarity_metric, t_norm = t_norm , batch_size = 1)
 		print(scores.shape)
 		torch.cuda.empty_cache()
 
@@ -120,6 +121,11 @@ if __name__ == "__main__":
 	help="T-norms available are ".format(t_norms)
 	)
 
+	parser.add_argument(
+	'--candidates', default=5,
+	help="Candidate amount for beam search"
+	)
+
 	args = parser.parse_args()
 
 	data_hard_path = args.dataset+'_hard.pkl'
@@ -129,5 +135,6 @@ if __name__ == "__main__":
 	data_complete = pickle.load(open(data_complete_path,'rb'))
 
 	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
-
-	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, similarity_metric = 'l2', t_norm = args.t_norm)
+	print(type(args.candidates))
+	candidates = int(args.candidates)
+	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, similarity_metric = 'l2', t_norm = args.t_norm, candidates = candidates)
