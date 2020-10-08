@@ -19,7 +19,7 @@ def summary(configuration):
 
 
 def to_cmd(c, _path=None):
-    command = f'PYTHONPATH=. python3 -m kbc.learn kbc/data/FB15k --model ComplEx --max_epochs {c["e"]} --model_save_schedule 10 --valid 3 --reg {c["n3"]} --batch_size {c["b"]} --rank {c["k"]}'
+    command = f'PYTHONPATH=. python3 -m kbc.learn kbc/data/FB15k --model ComplEx --max_epochs {c["e"]} --model_save_schedule 1000 --valid 3 --reg {c["n3"]} --batch_size {c["b"]} --rank {c["k"]}'
     return command
 
 
