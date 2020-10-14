@@ -18,6 +18,9 @@ from kbc.chain_dataset import ChaineDataset
 from kbc.chain_dataset import Chain
 from kbc.chain_dataset import save_chain_data
 
+KBC = 'kbc'
+Q2B_QUERIES = 'q2b_queries'
+Q2B_TRIPLES = 'q2b_triples'
 
 def load_q2b_maps(path):
     """Read entity and relation IDs from q2b mappings"""
@@ -162,7 +165,7 @@ translator_dict = {'1c': '1chain1', '1c_hard': '1chain1_hard',
                    'uc': '4chain3u'}
 
 
-def prepare_q2b_dataset(path, split):
+def convert_q2b_queries(path, split):
     split_check = f'{split}_ans'
     files = [i for i in os.listdir(path) if os.path.isfile(os.path.join(path, i)) and split_check in i]
 
@@ -347,7 +350,7 @@ def get_sampled_chain(chain_type_cast, contents):
     return chain_array
 
 
-def prepare_nell_dataset(path):
+def extract_q2b_triples(path):
     splits = ['train', 'valid', 'test']
 
     entities_to_id, relations_to_id = load_q2b_maps(path)
@@ -414,7 +417,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Process datasets for link prediction and query answering'
     )
-    parser.add_argument('type', choices=['kbc', 'q2b', 'nell'])
+
+    parser.add_argument('type', choices=[KBC, Q2B_QUERIES, Q2B_TRIPLES])
     parser.add_argument('data_path', help='Path containing triples for'
                                           ' training, validation, and test')
     parser.add_argument('--split', choices=['train', 'valid', 'test'],
@@ -424,12 +428,12 @@ if __name__ == "__main__":
 
     print(f'Loading dataset from {data_path}')
     try:
-        if args.type == 'kbc':
+        if args.type == KBC:
             prepare_dataset(data_path)
-        elif args.type == 'q2b':
-            prepare_q2b_dataset(data_path, args.split)
-        elif args.type == 'nell':
-            prepare_nell_dataset(data_path)
+        elif args.type == Q2B_QUERIES:
+            convert_q2b_queries(data_path, args.split)
+        elif args.type == Q2B_TRIPLES:
+            extract_q2b_triples(data_path)
     except OSError as e:
         if e.errno == errno.EEXIST:
             print(e)

@@ -146,7 +146,7 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
             argsort = torch.argsort(filter_score, dim=1, descending=True)
             ans_tensor = torch.LongTensor(hard_ans_list) if not env.cuda else torch.LongTensor(hard_ans_list).cuda()
             argsort = torch.transpose(torch.transpose(argsort, 0, 1) - ans_tensor, 0, 1)
-            ranking = (argsort == 0).nonzero()
+            ranking = (argsort == 0).nonzero(as_tuple=False)
             ranking = ranking[:, 1]
             ranking = ranking + 1
 
