@@ -12,6 +12,8 @@ import xml.etree.ElementTree
 import numpy as np
 import torch
 
+Device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def make_batches(size: int, batch_size: int) -> List[Tuple[int, int]]:
     max_batch = int(np.ceil(size / float(batch_size)))

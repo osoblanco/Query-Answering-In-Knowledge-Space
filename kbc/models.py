@@ -27,7 +27,7 @@ from kbc.utils import check_gpu
 from kbc.utils import DynKBCSingleton
 from kbc.utils import make_batches
 from kbc.utils import debug_memory
-
+from kbc.urils import Device
 
 class KBCModel(nn.Module, ABC):
 	@abstractmethod
@@ -156,7 +156,7 @@ class KBCModel(nn.Module, ABC):
 					print("\n\n Search converged early after {} iterations".format(i))
 				#print(losses)
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				if 'cp' in self.model_type().lower():
 					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
 				elif 'complex' in self.model_type().lower():
@@ -355,14 +355,14 @@ class KBCModel(nn.Module, ABC):
 					print("\n\n Search converged early after {} iterations".format(i))
 
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				lhs_1 = None
 				rel_1 = None
 
 				rel_2 = None
 				rhs_2 = None
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				gc.collect()
 
 				#print(losses)
@@ -433,14 +433,14 @@ class KBCModel(nn.Module, ABC):
 					print("\n\n Search converged early after {} iterations".format(i))
 
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				lhs_1 = None
 				rel_1 = None
 
 				lhs_2 = None
 				rel_2 = None
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				gc.collect()
 
 				#print(losses)
@@ -532,7 +532,7 @@ class KBCModel(nn.Module, ABC):
 					print("\n\n Search converged early after {} iterations".format(i))
 
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				gc.collect()
 
 				#print(losses)
@@ -540,14 +540,14 @@ class KBCModel(nn.Module, ABC):
 				if 'cp' in self.model_type().lower():
 					closest_map_1, indices_rankedby_distances_1 = self.__closest_matrix__(obj_guess_1,self.rhs,similarity_metric)
 
-					torch.cuda.empty_cache()
+					#torch.cuda.empty_cache()
 					gc.collect()
 
 					closest_map_2, indices_rankedby_distances_2 = self.__closest_matrix__(obj_guess_2,self.rhs,similarity_metric)
 
 				elif 'complex' in self.model_type().lower():
 					closest_map_1, indices_rankedby_distances_1 = self.__closest_matrix__(obj_guess_1,self.embeddings[0].weight.data,similarity_metric)
-					torch.cuda.empty_cache()
+					#torch.cuda.empty_cache()
 					gc.collect()
 					closest_map_2, indices_rankedby_distances_2 = self.__closest_matrix__(obj_guess_2,self.embeddings[0].weight.data,similarity_metric)
 
@@ -612,7 +612,7 @@ class KBCModel(nn.Module, ABC):
 					print("\n\n Search converged early after {} iterations".format(i))
 
 				#print(losses)
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				gc.collect()
 
 				if 'cp' in self.model_type().lower():
@@ -682,7 +682,7 @@ class KBCModel(nn.Module, ABC):
 					print("\n\n Search converged early after {} iterations".format(i))
 
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				gc.collect()
 
 				#print(losses)
@@ -754,7 +754,7 @@ class KBCModel(nn.Module, ABC):
 
 					print("\n\n Search converged early after {} iterations".format(i))
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				gc.collect()
 				#print(losses)
 
@@ -824,7 +824,7 @@ class KBCModel(nn.Module, ABC):
 					print("\n\n Search converged early after {} iterations".format(i))
 
 
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 				gc.collect()
 
 				#print(losses)
@@ -881,7 +881,7 @@ class KBCModel(nn.Module, ABC):
 			else:
 				z_scores = scores
 
-				z_indices = torch.arange(z_scores.shape[1]).view(1,-1).repeat(z_scores.shape[0],1).cuda()
+				z_indices = torch.arange(z_scores.shape[1]).view(1,-1).repeat(z_scores.shape[0],1).to(Device)
 				z_emb = self.entity_embeddings(z_indices)
 
 				# z_scores, z_indices = torch.topk(scores, k=scores.shape[1], dim=1)
@@ -893,8 +893,8 @@ class KBCModel(nn.Module, ABC):
 
 
 
-			del z_indices
-			torch.cuda.empty_cache()
+			#del z_indices
+			#torch.cuda.empty_cache()
 
 		except RuntimeError as e:
 			print("Cannot find the candidates with error: ", e)
@@ -958,7 +958,7 @@ class KBCModel(nn.Module, ABC):
 				candidate_cache = {}
 
 				batch_size = batch[1] - batch[0]
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 
 				for inst_ind, inst in enumerate(chain_instructions):
 					with torch.no_grad():
@@ -1016,13 +1016,13 @@ class KBCModel(nn.Module, ABC):
 
 									last_hop =  True
 									# del lhs, rel
-									# torch.cuda.empty_cache()
+									# #torch.cuda.empty_cache()
 									continue
 
 
 								last_hop =  True
 								# del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
-								# torch.cuda.empty_cache()
+								# #torch.cuda.empty_cache()
 
 						elif 'inter' in inst:
 							ind_1 = int(inst.split("_")[-2])
@@ -1088,12 +1088,12 @@ class KBCModel(nn.Module, ABC):
 									candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
 
 									last_hop =  True
-									del lhs, rel
-									torch.cuda.empty_cache()
+									#del lhs, rel
+									#torch.cuda.empty_cache()
 									continue
 
-								del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
-								torch.cuda.empty_cache()
+								#del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
+								#torch.cuda.empty_cache()
 
 
 				if batch_scores is not None:
@@ -1104,9 +1104,9 @@ class KBCModel(nn.Module, ABC):
 					scores = res if scores is None else torch.cat([scores,res])
 
 					candidate_cache.clear()
-					torch.cuda.empty_cache()
-					del batch_scores, scores_2d, res,candidate_cache
-					torch.cuda.empty_cache()
+					#torch.cuda.empty_cache()
+					#del batch_scores, scores_2d, res,candidate_cache
+					#torch.cuda.empty_cache()
 					gc.collect()
 
 
@@ -1114,7 +1114,7 @@ class KBCModel(nn.Module, ABC):
 					return 0
 
 				res = scores
-				torch.cuda.empty_cache()
+				#torch.cuda.empty_cache()
 
 
 		except RuntimeError as e:
@@ -1362,8 +1362,8 @@ class ComplEx(KBCModel):
 
 		res = score1 + score2 + score3 - score4
 
-		del score1,score2, score3, score4, rel_real, rel_img, arg1_real, arg1_img, arg2_real, arg2_img
-		torch.cuda.empty_cache()
+		#del score1,score2, score3, score4, rel_real, rel_img, arg1_real, arg1_img, arg2_real, arg2_img
+		#torch.cuda.empty_cache()
 		# [B] Tensor
 		return res
 
