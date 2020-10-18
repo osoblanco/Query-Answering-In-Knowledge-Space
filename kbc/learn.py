@@ -77,7 +77,7 @@ def train_kbc(KBC_optimizer, dataset, args):
 							'model_state_dict': KBC_optimizer.model.state_dict(),
 							'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
 							'loss': cur_loss},
-							 os.path.join(model_dir, '{}-model-epoch-{}-{}.pt'.format(args.dataset,epoch,timestamp)))
+							 os.path.join(model_dir, '{}-model-rank-{}-epoch-{}-{}.pt'.format(args.dataset,args.rank,epoch,timestamp)))
 
 				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
 					json.dump(vars(args), json_file)
