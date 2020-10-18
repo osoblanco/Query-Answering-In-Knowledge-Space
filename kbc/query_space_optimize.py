@@ -1,6 +1,8 @@
 import argparse
 import pickle
 import os.path as osp
+from pathlib import Path
+import json
 
 import torch
 
@@ -9,95 +11,92 @@ from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-def optimize_chains(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=5e-2):
-    try:
-        env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
-        env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
+def optimize_chains(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
+    env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
+    env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
 
-        kbc, chains = env.kbc, env.chains
+    kbc, chains = env.kbc, env.chains
 
-        queries = env.keys_hard
-        test_ans_hard = env.target_ids_hard
-        test_ans = env.target_ids_complete
+    queries = env.keys_hard
+    test_ans_hard = env.target_ids_hard
+    test_ans = env.target_ids_complete
+
+    if reg is not None:
+        print('Changing regularizer...')
         kbc.regularizer.weight = reg
 
-        scores = kbc.model.optimize_chains(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
+    scores = kbc.model.optimize_chains(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
 
-        print('Evaluating metrics')
-        metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
-        print(metrics)
+    print('Evaluating metrics')
+    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
 
-    except RuntimeError as e:
-        print("Cannot answer the query with a Brute Force: ", e)
+    return metrics
 
 
-def optimize_intersections(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=5e-2):
-    try:
-        env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
-        env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
+def optimize_intersections(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
+    env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
+    env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
 
-        kbc, chains = env.kbc, env.chains
+    kbc, chains = env.kbc, env.chains
 
-        queries = env.keys_hard
-        test_ans_hard = env.target_ids_hard
-        test_ans = env.target_ids_complete
+    queries = env.keys_hard
+    test_ans_hard = env.target_ids_hard
+    test_ans = env.target_ids_complete
+
+    if reg is not None:
         kbc.regularizer.weight = reg
 
-        scores = kbc.model.optimize_intersections(chains, kbc.regularizer, max_steps=1000,
-                                                  similarity_metric=similarity_metric, t_norm=t_norm,
-                                                  disjunctive=query_type == QuerDAG.TYPE2_2u.value)
-        torch.cuda.empty_cache()
-        print('Evaluating metrics')
-        metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
-        print(metrics)
+    scores = kbc.model.optimize_intersections(chains, kbc.regularizer, max_steps=1000,
+                                              similarity_metric=similarity_metric, t_norm=t_norm,
+                                              disjunctive=query_type == QuerDAG.TYPE2_2u.value)
+    torch.cuda.empty_cache()
+    print('Evaluating metrics')
+    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
 
-    except RuntimeError as e:
-        print("Cannot answer the query with a Brute Force: ", e)
+    return metrics
 
 
-def get_type43_graph_optimization(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=5e-2):
-    try:
-        env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
-        env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
+def get_type43_graph_optimization(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
+    env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
+    env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
 
-        kbc, chains = env.kbc, env.chains
+    kbc, chains = env.kbc, env.chains
 
-        queries = env.keys_hard
-        test_ans_hard = env.target_ids_hard
-        test_ans = env.target_ids_complete
+    queries = env.keys_hard
+    test_ans_hard = env.target_ids_hard
+    test_ans = env.target_ids_complete
+
+    if reg is not None:
         kbc.regularizer.weight = reg
 
-        scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm,
-                                                 disjunctive=query_type == QuerDAG.TYPE4_3u.value)
+    scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm,
+                                             disjunctive=query_type == QuerDAG.TYPE4_3u.value)
 
-        print('Evaluating metrics')
-        metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
-        print(metrics)
+    print('Evaluating metrics')
+    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
 
-    except RuntimeError as e:
-        print("Cannot answer the query with a Brute Force: ", e)
+    return metrics
 
 
-def get_type33_graph_optimization(kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=5e-2):
-    try:
-        env = preload_env(kbc_path, dataset_hard, '3_3', mode='hard')
-        env = preload_env(kbc_path, dataset_complete, '3_3', mode='complete')
+def get_type33_graph_optimization(kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
+    env = preload_env(kbc_path, dataset_hard, '3_3', mode='hard')
+    env = preload_env(kbc_path, dataset_complete, '3_3', mode='complete')
 
-        kbc, chains = env.kbc, env.chains
+    kbc, chains = env.kbc, env.chains
 
-        queries = env.keys_hard
-        test_ans_hard = env.target_ids_hard
-        test_ans = env.target_ids_complete
+    queries = env.keys_hard
+    test_ans_hard = env.target_ids_hard
+    test_ans = env.target_ids_complete
+
+    if reg is not None:
         kbc.regularizer.weight = reg
 
-        scores = kbc.model.type3_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
-        torch.cuda.empty_cache()
-        print('Evaluating metrics')
-        metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
-        print(metrics)
+    scores = kbc.model.type3_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
+    torch.cuda.empty_cache()
+    print('Evaluating metrics')
+    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
 
-    except RuntimeError as e:
-        print("Cannot answer the query with a Brute Force: ", e)
+    return metrics
 
 
 if __name__ == "__main__":
@@ -147,13 +146,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('--reg', type=float, help='Regularization coefficient',
-                        default=5e-2)
+                        default=None)
 
     args = parser.parse_args()
     mode = args.dataset_mode
 
-    data_hard_path = osp.join('data', args.dataset, f'{args.dataset}_{mode}_hard.pkl')
-    data_complete_path = osp.join('data', args.dataset, f'{args.dataset}_{mode}_complete.pkl')
+    script_path = osp.dirname(Path(__file__).absolute())
+
+    data_hard_path = osp.join(script_path, 'data', args.dataset, f'{args.dataset}_{mode}_hard.pkl')
+    data_complete_path = osp.join(script_path, 'data', args.dataset, f'{args.dataset}_{mode}_complete.pkl')
 
     data_hard = pickle.load(open(data_hard_path, 'rb'))
     data_complete = pickle.load(open(data_complete_path, 'rb'))
@@ -180,3 +181,10 @@ if __name__ == "__main__":
         ans = get_type43_graph_optimization(QuerDAG.TYPE4_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
     if QuerDAG.TYPE4_3u.value == args.chain_type:
         ans = get_type43_graph_optimization(QuerDAG.TYPE4_3u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
+
+    print(ans)
+
+    model_name = osp.splitext(osp.basename(args.model_path))[0]
+    reg_str = f'-{args.reg}' if args.reg is not None else ''
+    with open(f'{model_name}-{args.chain_type}{reg_str}-{mode}.json', 'w') as f:
+        json.dump(ans, f)

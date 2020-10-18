@@ -6,6 +6,8 @@ import enum
 import logging
 import subprocess
 
+import matplotlib.pyplot as plt
+
 from collections import OrderedDict
 import xml.etree.ElementTree
 import numpy as np
@@ -580,3 +582,31 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
         return env
 
     return env
+
+
+def plot_regularization_results():
+    reg_values = []
+    hits = []
+    query_type = '4_3u'
+    for f in os.listdir():
+        if f.startswith('FB15k-237-model-rank-500-epoch-100-1602506111'):
+            values = f.split('-')
+            if values[8] == query_type:
+                reg = float(values[9])
+                rank = values[4]
+                reg_values.append(reg)
+                results = json.load(open(f))
+                hits.append(results['HITS@3m_new'])
+
+    reg_values, hits = zip(*sorted(zip(reg_values, hits)))
+    plt.plot(reg_values, hits, label=f'Rank={rank}')
+    plt.xscale('log')
+    plt.xlabel('Regularization coefficient')
+    plt.ylabel('H@3')
+    plt.title(f'Results on {query_type} queries')
+    plt.legend()
+    plt.show()
+
+
+if __name__ == '__main__':
+    plot_regularization_results()

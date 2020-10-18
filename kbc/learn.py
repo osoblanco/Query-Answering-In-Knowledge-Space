@@ -115,7 +115,7 @@ def kbc_model_load(model_path):
 		if 'FB15k' and '237' in identifiers:
 			dataset_name = 'FB15k-237'
 
-		model_dir = os.path.join(os.getcwd(), 'models')
+		model_dir = os.path.dirname(model_path)
 
 		with open(os.path.join(model_dir, f'{dataset_name}-metadata-{timestamp}.json'), 'r') as json_file:
 			metadata = json.load(json_file)
