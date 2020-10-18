@@ -27,7 +27,7 @@ from kbc.utils import check_gpu
 from kbc.utils import DynKBCSingleton
 from kbc.utils import make_batches
 from kbc.utils import debug_memory
-from kbc.urils import Device
+from kbc.utils import Device
 
 class KBCModel(nn.Module, ABC):
 	@abstractmethod

@@ -135,6 +135,5 @@ if __name__ == "__main__":
 	data_complete = pickle.load(open(data_complete_path,'rb'))
 
 	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
-	print(type(args.candidates))
 	candidates = int(args.candidates)
 	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, similarity_metric = 'l2', t_norm = args.t_norm, candidates = candidates)
