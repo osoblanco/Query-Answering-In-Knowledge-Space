@@ -15,7 +15,7 @@ for d in dsets:
                 if d == 'FB237':
                     m = "FB15k-237"
                 elif d == 'FB15K':
-                    m = 'FB15k-237'
+                    m = 'FB15k'
 
                 cmd = f"PYTHONPATH=. python3 kbc/query_answer_BF.py --model_path models/{m}-model-rank-{r}-epoch-100-*.pt " \
                     f"--dataset {d}_dev --dataset_mode test --t_norm {t} --candidates {c}"
