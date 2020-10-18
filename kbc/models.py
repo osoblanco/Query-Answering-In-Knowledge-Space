@@ -893,7 +893,7 @@ class KBCModel(nn.Module, ABC):
 
 
 
-			#del z_indices
+			del z_indices
 			#torch.cuda.empty_cache()
 
 		except RuntimeError as e:
@@ -1015,13 +1015,13 @@ class KBCModel(nn.Module, ABC):
 									candidate_cache[f"lhs_{ind+1}"] = (batch_scores, rhs_3d)
 
 									last_hop =  True
-									# del lhs, rel
+									del lhs, rel
 									# #torch.cuda.empty_cache()
 									continue
 
 
 								last_hop =  True
-								# del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
+								del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
 								# #torch.cuda.empty_cache()
 
 						elif 'inter' in inst:
@@ -1088,11 +1088,11 @@ class KBCModel(nn.Module, ABC):
 									candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
 
 									last_hop =  True
-									#del lhs, rel
+									del lhs, rel
 									#torch.cuda.empty_cache()
 									continue
 
-								#del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
+								del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
 								#torch.cuda.empty_cache()
 
 
@@ -1103,9 +1103,9 @@ class KBCModel(nn.Module, ABC):
 					res, _ = torch.max(scores_2d, dim=1)
 					scores = res if scores is None else torch.cat([scores,res])
 
-					candidate_cache.clear()
+					# candidate_cache.clear()
 					#torch.cuda.empty_cache()
-					#del batch_scores, scores_2d, res,candidate_cache
+					del batch_scores, scores_2d, res,candidate_cache
 					#torch.cuda.empty_cache()
 					gc.collect()
 
@@ -1362,7 +1362,7 @@ class ComplEx(KBCModel):
 
 		res = score1 + score2 + score3 - score4
 
-		#del score1,score2, score3, score4, rel_real, rel_img, arg1_real, arg1_img, arg2_real, arg2_img
+		del score1,score2, score3, score4, rel_real, rel_img, arg1_real, arg1_img, arg2_real, arg2_img
 		#torch.cuda.empty_cache()
 		# [B] Tensor
 		return res
