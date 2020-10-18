@@ -3,25 +3,20 @@ import pickle
 
 import torch
 
-
 import numpy as np
 
 from kbc.exhaustive_objective_search import exhaustive_objective_search
 
-
 from kbc.learn import kbc_model_load
 from kbc.learn import dataset_to_query
 
-from kbc.chain_dataset import ChaineDataset
-from kbc.chain_dataset import Chain
 from kbc.utils import QuerDAG
-from kbc.utils import DynKBCSingleton
 from kbc.utils import preload_env
-
 
 from kbc.metrics import average_percentile_rank
 from kbc.metrics import norm_comparison
 from kbc.metrics import hits_at_k
+
 
 def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
     obj_guess_raw, closest_map = None, None
@@ -68,6 +63,7 @@ def get_optimization(kbc_path, dataset, dataset_mode, similarity_metric = 'l2'):
 
     return obj_guess_raw, closest_map
 
+
 def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess, closest_map = None, None
 
@@ -99,6 +95,7 @@ def get_type12_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
         print(e)
         return None
     return obj_guess_raw, closest_map
+
 
 def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
     obj_guess_raw, closest_map = None, None
@@ -133,6 +130,7 @@ def get_type22_graph_optimizaton(kbc_path, dataset, dataset_mode, similarity_met
 
     return obj_guess_raw, closest_map
 
+
 def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similarity_metric = 'l2', t_norm = 'min'):
 
     try:
@@ -145,11 +143,9 @@ def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similari
         for i in range(len(raw)):
             type1_3chain.append(raw[i].data)
 
-
         part1 = [x['raw_chain'][0] for x in type1_3chain]
         part2 = [x['raw_chain'][1] for x in type1_3chain]
         part3 = [x['raw_chain'][2] for x in type1_3chain]
-
 
         flattened_part1 =[]
         flattened_part2 = []
@@ -164,11 +160,9 @@ def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similari
                 flattened_part2.append(part2[chain_iter])
                 flattened_part1.append(part1[chain_iter])
 
-
         part1 = flattened_part1
         part2 = flattened_part2
         part3 = flattened_part3
-
 
         # SAMPLING HACK
         if len(part1) > 8000:
@@ -205,19 +199,14 @@ def get_type13_graph_optimizaton_joint(kbc_path, dataset, dataset_mode, similari
         chain2 = kbc.model.get_full_embeddigns(part2)
         chain3 = kbc.model.get_full_embeddigns(part3)
 
-
-
         lhs_norm = 0.0
         for lhs_emb in chain1[0]:
             lhs_norm+=torch.norm(lhs_emb)
 
         lhs_norm/= len(chain1[0])
 
-        obj_guess_raw_1, obj_guess_raw_2, closest_map_1,closest_map_2, \
-        indices_rankedby_distances_1, indices_rankedby_distances_2 \
-        = kbc.model.type1_3chain_optimize_joint(chain1,chain2,chain3, kbc.regularizer,\
-        max_steps=1000,similarity_metric=similarity_metric, t_norm = t_norm)
-
+        obj_guess_raw_1, obj_guess_raw_2, closest_map_1,closest_map_2, indices_rankedby_distances_1, indices_rankedby_distances_2 = \
+            kbc.model.type1_3chain_optimize_joint(chain1,chain2,chain3, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
 
         guess_norm_1 = 0.0
         for obj_emb in obj_guess_raw_1:

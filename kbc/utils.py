@@ -245,7 +245,7 @@ def get_keys_and_targets(parts, targets, graph_type):
     return target_ids, keys
 
 
-def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
+def preload_env(kbc_path, dataset, graph_type, mode="hard"):
 
     from kbc.learn import kbc_model_load
 
@@ -255,10 +255,9 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
     try:
 
         if env.kbc is not None:
-            kbc  = env.kbc
+            kbc = env.kbc
         else:
-            kbc,_,_ = kbc_model_load(kbc_path)
-
+            kbc, _ ,_ = kbc_model_load(kbc_path)
 
         keys = []
         target_ids = {}
@@ -285,25 +284,25 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
                 flattened_part1.append(part1[chain_iter])
                 targets.append(part2[chain_iter][2])
 
-
             part1 = flattened_part1
             part2 = flattened_part2
             targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
 
-
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
-
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:

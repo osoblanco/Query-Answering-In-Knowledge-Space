@@ -120,8 +120,11 @@ def kbc_model_load(model_path):
 		with open(os.path.join(model_dir, f'{dataset_name}-metadata-{timestamp}.json'), 'r') as json_file:
 			metadata = json.load(json_file)
 
+		map_location = None
+		if not torch.cuda.is_available():
+			map_location = torch.device('cpu')
 
-		checkpoint = torch.load(model_path)
+		checkpoint = torch.load(model_path, map_location=map_location)
 
 		factorizer_name  = checkpoint['factorizer_name']
 		model = None
@@ -134,8 +137,7 @@ def kbc_model_load(model_path):
 			print('Error in Model choices: Please choose CP or ComplEx')
 			return None, None, None
 
-		torch.cuda.empty_cache()
-		device = 'cuda'
+		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 		model.to(device)
 
 		regularizer = checkpoint['regularizer']
