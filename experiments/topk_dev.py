@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-dsets = ['FB15K', 'FB237', 'NELL']
+dsets = ['FB15k', 'FB15k-237', 'NELL']
 ranks = [100, 200, 500, 1000]
 tnorms = ['min', 'product']
 candidates = [3, 4, 5]
