@@ -20,5 +20,6 @@ for d in dsets:
                 cmd = f"PYTHONPATH=. python3 kbc/query_answer_BF.py --model_path models/{m}-model-rank-{r}-epoch-100-*.pt " \
                     f"--dataset {d}_dev --dataset_mode test --t_norm {t} --candidates {c}"
 
-                log_path = f"logs/topk_dev_d={d}_r={r}_t={t}_c={c}.log"
-                print(f"{cmd} > {log_path} 2>&1")
+                _id = f"topk_dev_d={d}_r={r}_t={t}_c={c}"
+
+                print(f"{cmd} > logs/{_id}.log 2>&1 ; mkdir logs/{_id} ; mv *.json logs/{_id}")
