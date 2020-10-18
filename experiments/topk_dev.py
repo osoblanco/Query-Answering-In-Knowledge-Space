@@ -22,4 +22,4 @@ for d in dsets:
 
                 _id = f"topk_dev_d={d}_r={r}_t={t}_c={c}"
 
-                print(f"{cmd} > logs/{_id}.log 2>&1 ; mkdir logs/{_id} ; mv *.json logs/{_id}")
+                print(f"{cmd} > logs/{_id}.log 2>&1 ; mkdir -p logs/{_id} ; mv *.json logs/{_id}")
