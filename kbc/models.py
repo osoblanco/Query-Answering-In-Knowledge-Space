@@ -19,6 +19,7 @@ from kbc.regularizers import Regularizer
 import tqdm
 
 import GPUtil
+import traceback
 
 import gc
 
@@ -961,6 +962,7 @@ class KBCModel(nn.Module, ABC):
 				#torch.cuda.empty_cache()
 
 				for inst_ind, inst in enumerate(chain_instructions):
+					print(candidate_cache.keys())
 					with torch.no_grad():
 						if 'hop' in inst:
 
@@ -1013,7 +1015,6 @@ class KBCModel(nn.Module, ABC):
 								else:
 									batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 									candidate_cache[f"lhs_{ind+1}"] = (batch_scores, rhs_3d)
-
 									last_hop =  True
 									del lhs, rel
 									# #torch.cuda.empty_cache()
@@ -1028,8 +1029,18 @@ class KBCModel(nn.Module, ABC):
 							ind_1 = int(inst.split("_")[-2])
 							ind_2 = int(inst.split("_")[-1])
 
-							for interesction_num, ind in enumerate([ind_1,ind_2]):
-								last_step =  (inst_ind == len(chain_instructions)-1) and interesction_num%2 == 0
+							indices = [ind_1, ind_2]
+
+							if len(inst.split("_")) > 3:
+								ind_1 = int(inst.split("_")[-3])
+								ind_2 = int(inst.split("_")[-2])
+								ind_3 = int(inst.split("_")[-1])
+
+								indices = [ind_1, ind_2, ind_3]
+
+							for interesction_num, ind in enumerate(indices):
+
+								last_step =  (inst_ind == len(chain_instructions)-1) and ind == indices[0]
 
 								lhs,rel,rhs = chains[ind]
 
@@ -1048,7 +1059,7 @@ class KBCModel(nn.Module, ABC):
 								rel = rel.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
 								rel = rel.view(-1, embedding_size)
 
-								if interesction_num%2 == 1:
+								if interesction_num > 1:
 									batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 									rhs = rhs_3d.view(-1, embedding_size)
 									z_scores = self.score_fixed(rel, lhs, rhs, candidates)
@@ -1081,7 +1092,9 @@ class KBCModel(nn.Module, ABC):
 										batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
 
 									candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
-									candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
+
+									if last_step:
+										candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
 
 								else:
 									batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
@@ -1111,14 +1124,15 @@ class KBCModel(nn.Module, ABC):
 
 
 				else:
-					return 0
+					print("Batch Scores are empty: an error went uncaught.")
+					print(traceback.print_exc())
+					pass
 
 				res = scores
-				#torch.cuda.empty_cache()
+					#torch.cuda.empty_cache()
 
 
 		except RuntimeError as e:
-			import traceback
 			print(traceback.print_exc())
 			print("Cannot complete iterative BF with error: ",e)
 			return res
