@@ -139,17 +139,18 @@ def evaluation(scores, queries, test_ans, test_ans_hard, env):
             # len(false_ans) = nentity - len(ans)
             # axis1 = []
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
             vals[axis1, axis2] = 1
-            b = torch.Tensor(vals) if not env.cuda else torch.Tensor(vals).cuda()
+            b = torch.Tensor(vals).to(device)
             filter_score = b*score
             argsort = torch.argsort(filter_score, dim=1, descending=True)
-            ans_tensor = torch.LongTensor(hard_ans_list) if not env.cuda else torch.LongTensor(hard_ans_list).cuda()
+            ans_tensor = torch.LongTensor(hard_ans_list).to(device)
+
             argsort = torch.transpose(torch.transpose(argsort, 0, 1) - ans_tensor, 0, 1)
             ranking = (argsort == 0).nonzero(as_tuple=False)
             ranking = ranking[:, 1]
             ranking = ranking + 1
-
 
             ans_vec = np.zeros(nentity)
             ans_vec[ans_list] = 1
