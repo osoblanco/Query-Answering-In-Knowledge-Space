@@ -962,7 +962,6 @@ class KBCModel(nn.Module, ABC):
 				#torch.cuda.empty_cache()
 
 				for inst_ind, inst in enumerate(chain_instructions):
-					print(candidate_cache.keys())
 					with torch.no_grad():
 						if 'hop' in inst:
 
