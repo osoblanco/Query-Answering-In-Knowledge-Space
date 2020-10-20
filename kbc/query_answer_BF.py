@@ -19,9 +19,6 @@ from kbc.utils import DynKBCSingleton
 from kbc.utils import create_instructions
 from kbc.utils import preload_env
 
-
-from kbc.metrics import average_percentile_rank
-from kbc.metrics import norm_comparison
 from kbc.metrics import evaluation
 
 
