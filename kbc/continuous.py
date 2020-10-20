@@ -46,8 +46,7 @@ def score_queries(args):
                                            max_steps=1000,
                                            t_norm=args.t_norm)
 
-    elif args.chain_type in (
-    QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE3_3.value):
+    elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE2_3.value):
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
                                                   max_steps=1000,
                                                   t_norm=args.t_norm,
