@@ -6,11 +6,15 @@ import enum
 import logging
 import subprocess
 
+
 from typing import List, Tuple
+import matplotlib.pyplot as plt
+
 from collections import OrderedDict
 import xml.etree.ElementTree
 import numpy as np
 import torch
+
 
 Device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -90,6 +94,7 @@ def create_instructions(chains):
         return instructions
     return instructions
 
+
 def extract(elem, tag, drop_s):
   text = elem.find(tag).text
   if drop_s not in text: raise Exception(text)
@@ -133,19 +138,18 @@ def check_gpu():
     return ('\nUpdated at %s\nGPU utilization: %s %%\nVRAM used: %s %%\n%s\n' % (now, d["gpu_util"],d["mem_used_per"], msg))
 
 
-
-
-
 class QuerDAG(enum.Enum):
     TYPE1_1 = "1_1"
     TYPE1_2 = "1_2"
     TYPE2_2 = "2_2"
     TYPE2_2_disj = "2_2_disj"
+    TYPE2_2u = "2_2u"
     TYPE1_3 = "1_3"
     TYPE2_3 = "2_3"
     TYPE3_3 = "3_3"
     TYPE4_3 = "4_3"
     TYPE4_3_disj = "4_3_disj"
+    TYPE4_3u = "4_3u"
     TYPE1_3_joint = '1_3_joint'
 
 
@@ -204,29 +208,22 @@ class DynKBCSingleton:
             DynKBCSingleton.__instance = self
 
     def set_eval_complete(self,target_ids_complete, keys_complete):
-
             self.target_ids_complete = target_ids_complete
             self.keys_complete = keys_complete
             self.__instance = self
 
 
-
-
-
 def get_keys_and_targets(parts, targets, graph_type):
-
     if len(parts) == 2:
         part1, part2 = parts
         part3 = None
     elif len(parts) == 3:
         part1, part2, part3 = parts
 
-
     target_ids = {}
     keys = []
 
     for chain_iter in range(len(part2)):
-
 
         if part3:
             key = part1[chain_iter] + part2[chain_iter] + part3[chain_iter]
@@ -234,7 +231,6 @@ def get_keys_and_targets(parts, targets, graph_type):
             key = part1[chain_iter] + part2[chain_iter]
 
         key = '_'.join(str(e) for e in key)
-
 
         if key not in target_ids:
             target_ids[key] = []
@@ -254,10 +250,14 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
     chain_instructions = []
     try:
 
+
         if env.kbc is not None:
             kbc = env.kbc
         else:
-            kbc, _ ,_ = kbc_model_load(kbc_path)
+            kbc, epoch, loss = kbc_model_load(kbc_path)
+
+        for parameter in kbc.model.parameters():
+            parameter.requires_grad = False
 
         keys = []
         target_ids = {}
@@ -334,26 +334,26 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
                 flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],-(chain_iter+1234)])
                 targets.append(part2[chain_iter][2])
 
-
             part1 = flattened_part1
             part2 = flattened_part2
             targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
 
-
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+
+            part1 = torch.tensor(part1.astype('int64'), device=device)
 
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
-
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -363,7 +363,6 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             chains = [chain1,chain2]
             parts = [part1,part2]
 
-
         elif QuerDAG.TYPE2_2_disj.value == graph_type:
             raw = dataset.type2_2_disj_chain
 
@@ -371,10 +370,8 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             for i in range(len(raw)):
                 type2_2chain.append(raw[i].data)
 
-
             part1 = [x['raw_chain'][0] for x in type2_2chain]
             part2 = [x['raw_chain'][1] for x in type2_2chain]
-
 
             flattened_part1 =[]
             flattened_part2 = []
@@ -396,15 +393,16 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
 
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
-
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -446,16 +444,19 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
 
             target_ids, keys = get_keys_and_targets([part1, part2, part3], targets, graph_type)
 
-
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
+
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
@@ -478,11 +479,9 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             for i in range(len(raw)):
                 type2_3chain.append(raw[i].data)
 
-
             part1 = [x['raw_chain'][0] for x in type2_3chain]
             part2 = [x['raw_chain'][1] for x in type2_3chain]
             part3 = [x['raw_chain'][2] for x in type2_3chain]
-
 
             flattened_part1 =[]
             flattened_part2 = []
@@ -495,7 +494,6 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
                 flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],-(chain_iter+1234)])
                 targets.append(part3[chain_iter][2])
 
-
             part1 = flattened_part1
             part2 = flattened_part2
             part3 = flattened_part3
@@ -506,13 +504,16 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
+
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
@@ -565,12 +566,16 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
+
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
@@ -610,7 +615,6 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
                 flattened_part2.append([part2[chain_iter][0],part2[chain_iter][1],part2[chain_iter][2]])
                 flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],part1[chain_iter][2]])
                 targets.append(part3[chain_iter][2])
-
 
             part1 = flattened_part1
             part2 = flattened_part2
@@ -669,7 +673,6 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
                 flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],part1[chain_iter][2]])
                 targets.append(part3[chain_iter][2])
 
-
             part1 = flattened_part1
             part2 = flattened_part2
             part3 = flattened_part3
@@ -680,14 +683,16 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
 
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
 
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
@@ -709,20 +714,44 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
             target_ids = dataset['target_ids']
             chain_instructions = create_instructions([parts[0][0], parts[1][0], parts[2][0]])
 
-
-
-        print(chain_instructions)
-
         if mode == 'hard':
-            env.set_attr(kbc, chains, parts, target_ids, keys, None, None,chain_instructions, graph_type, lhs_norm, False )
+            env.set_attr(kbc, chains, parts, target_ids, keys, None, None, chain_instructions, graph_type, lhs_norm, False )
 
             # env.set_attr(kbc,chains,parts,target_ids, keys, chain_instructions , graph_type, lhs_norm)
+            # def set_attr(kbc, chains, parts, target_ids_hard, keys_hard, target_ids_complete, keys_complete, chain_instructions, graph_type, lhs_norm, cuda ):
         else:
             env.set_eval_complete(target_ids,keys)
-
 
     except RuntimeError as e:
         print("Cannot preload environment with error: ", e)
         return env
 
     return env
+
+
+def plot_regularization_results():
+    reg_values = []
+    hits = []
+    query_type = '4_3u'
+    for f in os.listdir():
+        if f.startswith('FB15k-237-model-rank-500-epoch-100-1602506111'):
+            values = f.split('-')
+            if values[8] == query_type:
+                reg = float(values[9])
+                rank = values[4]
+                reg_values.append(reg)
+                results = json.load(open(f))
+                hits.append(results['HITS@3m_new'])
+
+    reg_values, hits = zip(*sorted(zip(reg_values, hits)))
+    plt.plot(reg_values, hits, label=f'Rank={rank}')
+    plt.xscale('log')
+    plt.xlabel('Regularization coefficient')
+    plt.ylabel('H@3')
+    plt.title(f'Results on {query_type} queries')
+    plt.legend()
+    plt.show()
+
+
+if __name__ == '__main__':
+    plot_regularization_results()

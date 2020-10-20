@@ -31,11 +31,13 @@ class ChaineDataset():
 
         self.type1_2chain = []
         self.type2_2chain = []
+        self.type2_2chain_u = []
 
         self.type1_3chain = []
         self.type2_3chain = []
         self.type3_3chain = []
         self.type4_3chain = []
+        self.type4_3chain_u = []
 
 
 

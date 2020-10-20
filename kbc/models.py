@@ -7,6 +7,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Optional
+import math
 
 import torch
 from torch import nn
@@ -173,7 +174,7 @@ class KBCModel(nn.Module, ABC):
 
 		return obj_guess, closest_map, indices_rankedby_distances
 
-	def __get_chains__(self, chains:List , graph_type:str = QuerDAG.TYPE1_2.value):
+	def __get_chains__(self, chains: List, graph_type: str = QuerDAG.TYPE1_2.value):
 		try:
 			if '2' in graph_type[-1]:
 				chain1, chain2 = chains
@@ -181,284 +182,251 @@ class KBCModel(nn.Module, ABC):
 				chain1, chain2, chain3 = chains
 
 			if QuerDAG.TYPE1_2.value in graph_type:
-				try:
-					print(check_gpu())
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				rel_2 = chain2[1]
 
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-					rhs_2 = chain2[2].clone().detach().requires_grad_(False).to(chain2[2].device)
-
-
-				except RuntimeError as e:
-					print("Cuda Memory not enough trying a hack")
-					print("_____________________________________________")
-
-					print(check_gpu())
-
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-
-					rel_2 = chain2[1]
-					rhs_2 = chain2[2]
-
-				raw_chain = [lhs_1,rel_1,rel_2,rhs_2]
+				raw_chain = [lhs_1, rel_1, rel_2]
 
 			elif QuerDAG.TYPE2_2.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+				lhs_2 = chain2[0]
+				rel_2 = chain2[1]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
-
-				raw_chain = [lhs_1,rel_1,lhs_2,rel_2]
+				raw_chain = [lhs_1, rel_1, lhs_2, rel_2]
 
 			elif QuerDAG.TYPE1_3.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
-					rhs_1 = chain1[2].clone().detach().requires_grad_(False).to(chain1[2].device)
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+				rel_2 = chain2[1]
 
-					rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-					rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
+				rhs_3 = chain3[1]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-					rhs_1 = chain1[2]
+				raw_chain = [lhs_1, rel_1, rel_2, rhs_3]
 
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
+			elif QuerDAG.TYPE2_3.value in graph_type:
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					rel_3 = chain3[1]
-					rhs_3 = chain3[2]
+				lhs_2 = chain2[0]
+				rel_2 = chain2[1]
 
-				raw_chain = [lhs_1,rel_1,rhs_1,lhs_2,rel_2,rel_3,rhs_3]
+				lhs_3 = chain3[0]
+				rel_3 = chain3[1]
 
-			elif QuerDAG.TYPE2_3.value in graph_type or QuerDAG.TYPE3_3.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				raw_chain = [lhs_1, rel_1, lhs_2, rel_2, lhs_3, rel_3]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+			elif QuerDAG.TYPE3_3.value in graph_type:
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_3 = chain3[0].clone().detach().requires_grad_(False).to(chain3[0].device)
-					rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
+				rel_2 = chain2[1]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
+				lhs_2 = chain3[0]
+				rel_3 = chain3[1]
 
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
-
-					lhs_3 = chain3[0]
-					rel_3 = chain3[1]
-
-				raw_chain = [lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3]
+				raw_chain = [lhs_1, rel_1, rel_2, lhs_2, rel_3]
 
 			elif QuerDAG.TYPE4_3.value in graph_type:
-				try:
-					lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-					rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
+				lhs_1 = chain1[0]
+				rel_1 = chain1[1]
 
-					lhs_2 = chain2[0].clone().detach().requires_grad_(False).to(chain2[0].device)
-					rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
+				lhs_2 = chain2[0]
+				rel_2 = chain2[1]
 
-					rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-					rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
+				rel_3 = chain3[1]
 
-				except:
-					print("Cuda Memory not enough trying a hack")
-					lhs_1 = chain1[0]
-					rel_1 = chain1[1]
-
-					lhs_2 = chain2[0]
-					rel_2 = chain2[1]
-
-					rel_3 = chain3[1]
-					rhs_3 = chain3[2]
-
-				raw_chain = [lhs_1,rel_1,lhs_2,rel_2,rel_3,rhs_3]
+				raw_chain = [lhs_1, rel_1, lhs_2, rel_2, rel_3]
 
 		except RuntimeError as e:
-			print("Cannot Get chains with Error: ",e)
+			print("Cannot Get chains with Error: ", e)
 			return None
 
 		return raw_chain
 
 
-	def type1_2chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
-							max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+	def optimize_chains(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+						max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
 		try:
+			if len(chains) == 2:
+				lhs_1, rel_1, rel_2 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE1_2.value)
+			elif len(chains) == 3:
+				lhs_1, rel_1, rel_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE1_3.value)
+			else:
+				raise ValueError(f'Invalid number of chains: {len(chains)}')
 
-			lhs_1,rel_1,rel_2,rhs_2 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE1_2.value)
-			obj_guess = torch.rand(rhs_2.shape, requires_grad=True, device=rhs_2.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-			obj_guess = obj_guess.clone().detach().requires_grad_(True).to(rhs_2.device)
+			obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			obj_guess_2 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			params = [obj_guess_1, obj_guess_2]
+			if len(chains) == 3:
+				obj_guess_3 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+				params.append(obj_guess_3)
+			optimizer = optim.Adam(params, lr=0.1)
 
-
-			optimizer = optim.Adam([obj_guess], lr=0.1)
-
-			prev_loss =  torch.tensor([1000.], dtype = torch.float)
-			loss = torch.tensor([999.],dtype=torch.float)
-
+			prev_loss_value = 1000
+			loss_value = 999
 			losses = []
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+				i = 0
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
+					prev_loss_value = loss_value
 
-				i =1
-				while i <= max_steps and (prev_loss - loss)>1e-30:
+					score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
+					score_2, factors_2 = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
+					factors = [factors_1[2], factors_2[2]]
 
-					prev_loss = loss.clone()
+					atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
 
-					l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
-					score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess))
+					if len(chains) == 3:
+						score_3, factors_3 = self.score_emb(obj_guess_2, rel_3, obj_guess_3)
+						factors.append(factors_3[2])
+						atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
 
+					guess_regularizer = regularizer(factors)
 
-					l_reg_2 = regularizer.forward((obj_guess, rel_2, rhs_2))
-					score_2 = -(self.score_emb(obj_guess, rel_2, rhs_2))
-
-
-					if 'min' in t_norm.lower():
-						loss = torch.min(score_1,score_2) - (-l_reg_1 - l_reg_2)
-					elif 'prod' in t_norm.lower():
-						loss = (score_1 +l_reg_1) * (score_2 + l_reg_2)
+					t_norm = torch.prod(atoms, dim=1)
+					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()
-
 					loss.backward()
 					optimizer.step()
 
-					i+=1
+					i += 1
 					bar.update(1)
 					bar.set_postfix(loss=f'{loss.item():.6f}')
 
-					losses.append(loss.item())
+					loss_value = loss.item()
+					losses.append(loss_value)
 
 				if i != max_steps:
-					bar.update(max_steps-i +1)
-					print("\n\n Search converged early after {} iterations".format(i))
+					bar.update(max_steps - i + 1)
+					bar.close()
+					print(
+						"Search converged early after {} iterations".format(i))
 
-
-				#torch.cuda.empty_cache()
-				lhs_1 = None
-				rel_1 = None
-
-				rel_2 = None
-				rhs_2 = None
-
-				#torch.cuda.empty_cache()
-				gc.collect()
-
-				#print(losses)
-
-				if 'cp' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-				elif 'complex' in self.model_type().lower():
-					print(self.embeddings[0].weight.data.shape)
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
+				if len(chains) == 2:
+					guess = obj_guess_2
 				else:
-					print("Choose model type from cp or complex please")
-					raise
+					guess = obj_guess_3
+
+				with torch.no_grad():
+					if len(chains) == 2:
+						score_2 = self.forward_emb(obj_guess_1, rel_2)
+						atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2), dim=-1))
+					else:
+						score_3 = self.forward_emb(obj_guess_2, rel_3)
+						atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3),dim=-1))
+
+					t_norm = torch.prod(atoms, dim=-1)
+
+					scores = t_norm
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
 			return None
 
-		return obj_guess, closest_map, indices_rankedby_distances
+		return scores
 
-	def type2_2chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+	def optimize_intersections(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+							   max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
+							   disjunctive=False):
 		try:
+			if len(chains) == 2:
+				raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_2.value)
+				lhs_1, rel_1, lhs_2, rel_2 = raw_chain
+			elif len(chains) == 3:
+				raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_3.value)
+				lhs_1, rel_1, lhs_2, rel_2, lhs_3, rel_3 = raw_chain
+			else:
+				raise ValueError(f'Invalid number of intersections: {len(chains)}')
 
-			lhs_1,rel_1,lhs_2,rel_2 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE2_2.value)
-			obj_guess = torch.rand(lhs_2.shape, requires_grad=True, device=lhs_2.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-			obj_guess = obj_guess.clone().detach().requires_grad_(True).to(lhs_2.device)
-
-
+			obj_guess = torch.normal(0, self.init_size, lhs_2.shape, device=lhs_2.device, requires_grad=True)
 			optimizer = optim.Adam([obj_guess], lr=0.1)
 
-			prev_loss =  torch.tensor([1000.], dtype = torch.float)
-			loss = torch.tensor([999.],dtype=torch.float)
-
+			prev_loss_value = 1000
+			loss_value = 999
 			losses = []
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+				i = 0
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
+					prev_loss_value = loss_value
 
-				i =1
-				while i <= max_steps and (prev_loss - loss)>1e-30:
+					score_1, factors = self.score_emb(lhs_1, rel_1, obj_guess)
+					guess_regularizer = regularizer([factors[2]])
+					score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess)
 
-					prev_loss = loss.clone()
+					atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
 
-					l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
-					score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess) )
+					if len(chains) == 3:
+						score_3, _ = self.score_emb(lhs_3, rel_3, obj_guess)
+						atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
 
+					t_norm = torch.prod(atoms, dim=1)
 
-					l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
-					score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess))
+					if disjunctive:
+						t_norm = torch.sum(atoms, dim=1) - t_norm
 
-					loss = torch.min(score_1,score_2) - (-l_reg_1 - l_reg_2)
+					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()
-
 					loss.backward()
 					optimizer.step()
 
-					i+=1
+					i += 1
 					bar.update(1)
 					bar.set_postfix(loss=f'{loss.item():.6f}')
 
-					losses.append(loss.item())
-
+					loss_value = loss.item()
+					losses.append(loss_value)
 
 				if i != max_steps:
-					bar.update(max_steps-i +1)
 
+					bar.update(max_steps - i + 1)
+					bar.close()
+					print("Search converged early after {} iterations".format(i))
 
-					print("\n\n Search converged early after {} iterations".format(i))
+				with torch.no_grad():
+					score_1 = self.forward_emb(lhs_1, rel_1)
+					score_2 = self.forward_emb(lhs_2, rel_2)
+					atoms = torch.stack((score_1, score_2), dim=-1)
 
+					if disjunctive:
+						atoms = torch.sigmoid(atoms)
 
-				#torch.cuda.empty_cache()
-				lhs_1 = None
-				rel_1 = None
+					if len(chains) == 3:
+						score_3 = self.forward_emb(lhs_3, rel_3)
+						atoms = torch.cat((atoms, score_3.unsqueeze(-1)), dim=-1)
 
-				lhs_2 = None
-				rel_2 = None
-
-				#torch.cuda.empty_cache()
-				gc.collect()
-
-				#print(losses)
-
-				if 'cp' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-				elif 'complex' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-				else:
-					print("Choose model type from cp or complex please")
-					raise
+					t_norm = torch.prod(atoms, dim=-1)
+					if disjunctive:
+						scores = torch.sum(atoms, dim=-1) - t_norm
+					else:
+						scores = t_norm
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
 			return None
 
-		return obj_guess, closest_map, indices_rankedby_distances
+		return scores
+
+	def __compute_similarities__(self, x: torch.tensor):
+		model_type = self.model_type().lower()
+		if 'cp' in model_type:
+			entities = self.rhs
+		elif 'complex' in model_type:
+			entities = self.embeddings[0].weight.data
+		else:
+			raise ValueError(f'Unknown model type {model_type}')
+
+		scores = x @ entities.t()
+
+		return scores
 
 	def type1_3chain_optimize_joint(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
 									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
@@ -707,145 +675,134 @@ class KBCModel(nn.Module, ABC):
 	def type3_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
 									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
 		try:
+			lhs_1, rel_1, rel_2, lhs_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE3_3.value)
 
-			lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE3_3.value)
+			obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			obj_guess_2 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			optimizer = optim.Adam([obj_guess_1, obj_guess_2], lr=0.1)
 
-			obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-			obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
-
-			optimizer = optim.Adam([obj_guess], lr=0.1)
-
-			prev_loss =  torch.tensor([1000.], dtype = torch.float)
-			loss = torch.tensor([999.],dtype=torch.float)
-
+			prev_loss_value = 1000
+			loss_value = 999
 			losses = []
+
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+				i = 0
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
+					prev_loss_value = loss_value
 
-				i =1
-				while i <= max_steps and (prev_loss - loss)>1e-30:
+					score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
+					score_2, _ = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
+					score_3, factors_2 = self.score_emb(lhs_2, rel_3, obj_guess_2)
+					factors = [factors_1[2], factors_2[2]]
 
-					prev_loss = loss.clone()
+					atoms = torch.sigmoid(torch.cat((score_1, score_2, score_3), dim=1))
 
-					# l_reg_1 = regularizer.forward((lhs_1, rel_1, lhs_2)) *0
-					# score_1 = -(self.score_emb(lhs_1, rel_1, lhs_2))*0
+					guess_regularizer = regularizer(factors)
 
-					l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
-					score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess) )
-
-					l_reg_3 = regularizer.forward((lhs_3, rel_3, obj_guess))
-					score_3 = -(self.score_emb(lhs_3, rel_3, obj_guess))
-
-					loss = torch.min(torch.stack([score_2,score_3])) - ( - l_reg_2 - l_reg_3 )
+					t_norm = torch.prod(atoms, dim=1)
+					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()
-
 					loss.backward()
 					optimizer.step()
 
-					i+=1
+					i += 1
 					bar.update(1)
 					bar.set_postfix(loss=f'{loss.item():.6f}')
 
-					losses.append(loss.item())
-
+					loss_value = loss.item()
+					losses.append(loss_value)
 
 				if i != max_steps:
-					bar.update(max_steps-i +1)
+					bar.update(max_steps - i + 1)
+					bar.close()
+					print(
+						"Search converged early after {} iterations".format(i))
 
+				with torch.no_grad():
+					score_2 = self.forward_emb(obj_guess_1, rel_2)
+					score_3 = self.forward_emb(lhs_2, rel_3)
+					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2, score_3), dim=-1))
 
-					print("\n\n Search converged early after {} iterations".format(i))
+					t_norm = torch.prod(atoms, dim=-1)
 
-				#torch.cuda.empty_cache()
-				gc.collect()
-				#print(losses)
+					scores = t_norm
 
-				if 'cp' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-
-				elif 'complex' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-
-				else:
-					print("Choose model type from cp or complex please")
-					raise
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
 			return None
 
-		return obj_guess,closest_map,indices_rankedby_distances
+		return scores
 
-	def type4_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+	def type4_3chain_optimize(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+							  max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
+							  disjunctive=False):
 		try:
+			lhs_1, rel_1, lhs_2, rel_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE4_3.value)
 
-			lhs_1,rel_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains , graph_type =QuerDAG.TYPE4_3.value)
-			obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-			obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
+			obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			obj_guess_2 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+			optimizer = optim.Adam([obj_guess_1, obj_guess_2], lr=0.1)
 
-			optimizer = optim.Adam([obj_guess], lr=0.1)
-
-			prev_loss =  torch.tensor([1000.], dtype = torch.float)
-			loss = torch.tensor([999.],dtype=torch.float)
-
+			prev_loss_value = 1000
+			loss_value = 999
 			losses = []
 
 			with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+				i = 0
+				while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
+					prev_loss_value = loss_value
 
-				i =1
-				while i <= max_steps and (prev_loss - loss)>1e-30:
+					score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
+					score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess_1)
+					score_3, factors_2 = self.score_emb(obj_guess_1, rel_3, obj_guess_2)
+					factors = [factors_1[2], factors_2[2]]
+					guess_regularizer = regularizer(factors)
 
-					prev_loss = loss.clone()
+					if not disjunctive:
+						atoms = torch.sigmoid(torch.cat((score_1, score_2, score_3), dim=1))
+						t_norm = torch.prod(atoms, dim=1)
+					else:
+						disj_atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
+						t_conorm = torch.sum(disj_atoms, dim=1, keepdim=True) - torch.prod(disj_atoms, dim=1, keepdim=True)
+						conj_atoms = torch.cat((t_conorm, torch.sigmoid(score_3)), dim=1)
+						t_norm = torch.prod(conj_atoms, dim=1)
 
-					l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
-					score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess))
-
-					l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
-					score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess) )
-
-					l_reg_3 = regularizer.forward((obj_guess, rel_3, rhs_3))
-					score_3 = -(self.score_emb(obj_guess, rel_3, rhs_3))
-
-					loss = torch.min(torch.stack([score_1,score_2,score_3])) - (-l_reg_1 - l_reg_2 - l_reg_3 )
+					loss = -t_norm.mean() + guess_regularizer
 
 					optimizer.zero_grad()
-
 					loss.backward()
 					optimizer.step()
 
-					i+=1
+					i += 1
 					bar.update(1)
 					bar.set_postfix(loss=f'{loss.item():.6f}')
 
-					losses.append(loss.item())
-
+					loss_value = loss.item()
+					losses.append(loss_value)
 
 				if i != max_steps:
-					bar.update(max_steps-i +1)
-					print("\n\n Search converged early after {} iterations".format(i))
+					bar.update(max_steps - i + 1)
+					bar.close()
+					print(
+						"Search converged early after {} iterations".format(i))
 
+				with torch.no_grad():
+					score_3 = self.forward_emb(obj_guess_1, rel_3)
+					if not disjunctive:
+						atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
+					else:
+						atoms = torch.stack((t_conorm.expand_as(score_3), torch.sigmoid(score_3)), dim=-1)
 
-				#torch.cuda.empty_cache()
-				gc.collect()
-
-				#print(losses)
-				if 'cp' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-
-				elif 'complex' in self.model_type().lower():
-					closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-
-				else:
-					print("Choose model type from cp or complex please")
-					raise
+					t_norm = torch.prod(atoms, dim=-1)
+					scores = t_norm
 
 		except RuntimeError as e:
 			print("Cannot optimize the queries with error {}".format(str(e)))
 			return None
 
-		return obj_guess,closest_map,indices_rankedby_distances
-
-
+		return scores
 
 	def get_best_candidates(self,
 			rel: Tensor,
@@ -1336,6 +1293,7 @@ class ComplEx(KBCModel):
 		self.embeddings[0].weight.data *= init_size
 		self.embeddings[1].weight.data *= init_size
 
+		self.init_size = init_size
 
 	def score(self, x):
 		lhs = self.embeddings[0](x[:, 0])
@@ -1418,20 +1376,19 @@ class ComplEx(KBCModel):
 
 		return score_sp, score_po
 
+	def score_emb(self, lhs_emb, rel_emb, rhs_emb):
+		lhs = lhs_emb[:, :self.rank], lhs_emb[:, self.rank:]
+		rel = rel_emb[:, :self.rank], rel_emb[:, self.rank:]
+		rhs = rhs_emb[:, :self.rank], rhs_emb[:, self.rank:]
 
-
-
-	def score_emb(self, lhs, rel, rhs):
-
-		lhs_dub = lhs[:, :self.rank], lhs[:, self.rank:]
-		rel_dub = rel[:, :self.rank], rel[:, self.rank:]
-		rhs_dub = rhs[:, :self.rank], rhs[:, self.rank:]
-
-		return torch.mean(torch.sum(
-			(lhs_dub[0] * rel_dub[0] - lhs_dub[1] * rel_dub[1]) * rhs_dub[0] +
-			(lhs_dub[0] * rel_dub[1] + lhs_dub[1] * rel_dub[0]) * rhs_dub[1],
-			1, keepdim=True))
-
+		return torch.sum(
+			(lhs[0] * rel[0] - lhs[1] * rel[1]) * rhs[0] +
+			(lhs[0] * rel[1] + lhs[1] * rel[0]) * rhs[1],
+			1, keepdim=True), (
+			torch.sqrt(lhs[0] ** 2 + lhs[1] ** 2),
+			torch.sqrt(rel[0] ** 2 + rel[1] ** 2),
+			torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
+		)
 
 	def forward(self, x):
 		lhs = self.embeddings[0](x[:, 0])
@@ -1453,6 +1410,14 @@ class ComplEx(KBCModel):
 			torch.sqrt(rhs[0] ** 2 + rhs[1] ** 2)
 		)
 
+	def forward_emb(self, lhs, rel):
+		lhs = lhs[:, :self.rank], lhs[:, self.rank:]
+		rel = rel[:, :self.rank], rel[:, self.rank:]
+
+		to_score = self.embeddings[0].weight
+		to_score = to_score[:, :self.rank], to_score[:, self.rank:]
+		return ((lhs[0] * rel[0] - lhs[1] * rel[1]) @ to_score[0].transpose(0, 1) +
+				(lhs[0] * rel[1] + lhs[1] * rel[0]) @ to_score[1].transpose(0, 1))
 
 	def get_rhs(self, chunk_begin: int, chunk_size: int):
 		return self.embeddings[0].weight.data[
