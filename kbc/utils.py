@@ -13,6 +13,7 @@ import xml.etree.ElementTree
 import numpy as np
 import torch
 
+
 def create_instructions(chains):
     instructions = []
     try:
@@ -68,6 +69,7 @@ def create_instructions(chains):
         return instructions
     return instructions
 
+
 def extract(elem, tag, drop_s):
   text = elem.find(tag).text
   if drop_s not in text: raise Exception(text)
@@ -99,9 +101,6 @@ def check_gpu():
 
     now = time.strftime("%c")
     return ('\n\nUpdated at %s\n\nGPU utilization: %s %%\nVRAM used: %s %%\n\n%s\n\n' % (now, d["gpu_util"],d["mem_used_per"], msg))
-
-
-
 
 
 class QuerDAG(enum.Enum):
@@ -172,29 +171,22 @@ class DynKBCSingleton:
             DynKBCSingleton.__instance = self
 
     def set_eval_complete(self,target_ids_complete, keys_complete):
-
             self.target_ids_complete = target_ids_complete
             self.keys_complete = keys_complete
             self.__instance = self
 
 
-
-
-
 def get_keys_and_targets(parts, targets, graph_type):
-
     if len(parts) == 2:
         part1, part2 = parts
         part3 = None
     elif len(parts) == 3:
         part1, part2, part3 = parts
 
-
     target_ids = {}
     keys = []
 
     for chain_iter in range(len(part2)):
-
 
         if part3:
             key = part1[chain_iter] + part2[chain_iter] + part3[chain_iter]
@@ -202,7 +194,6 @@ def get_keys_and_targets(parts, targets, graph_type):
             key = part1[chain_iter] + part2[chain_iter]
 
         key = '_'.join(str(e) for e in key)
-
 
         if key not in target_ids:
             target_ids[key] = []
@@ -252,24 +243,24 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
                 flattened_part1.append(part1[chain_iter])
                 targets.append(part2[chain_iter][2])
 
-
             part1 = flattened_part1
             part2 = flattened_part2
 
             target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
 
-
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
-
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -286,15 +277,12 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             else:
                 raw = dataset.type2_2chain
 
-
             type2_2chain = []
             for i in range(len(raw)):
                 type2_2chain.append(raw[i].data)
 
-
             part1 = [x['raw_chain'][0] for x in type2_2chain]
             part2 = [x['raw_chain'][1] for x in type2_2chain]
-
 
             flattened_part1 =[]
             flattened_part2 = []
@@ -315,15 +303,16 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
 
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
-
 
             lhs_norm = 0.0
             for lhs_emb in chain1[0]:
@@ -365,16 +354,19 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
 
             target_ids, keys = get_keys_and_targets([part1, part2, part3], targets, graph_type)
 
-
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
+
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
@@ -397,11 +389,9 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             for i in range(len(raw)):
                 type2_3chain.append(raw[i].data)
 
-
             part1 = [x['raw_chain'][0] for x in type2_3chain]
             part2 = [x['raw_chain'][1] for x in type2_3chain]
             part3 = [x['raw_chain'][2] for x in type2_3chain]
-
 
             flattened_part1 =[]
             flattened_part2 = []
@@ -414,7 +404,6 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
                 flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],-(chain_iter+1234)])
                 targets.append(part3[chain_iter][2])
 
-
             part1 = flattened_part1
             part2 = flattened_part2
             part3 = flattened_part3
@@ -424,13 +413,16 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
+
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
@@ -482,12 +474,16 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
+
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
@@ -541,14 +537,16 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             if not chain_instructions:
                 chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
 
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
             part1 = np.array(part1)
-            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+            part1 = torch.tensor(part1.astype('int64'), device=device)
 
             part2 = np.array(part2)
-            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+            part2 = torch.tensor(part2.astype('int64'), device=device)
 
             part3 = np.array(part3)
-            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+            part3 = torch.tensor(part3.astype('int64'), device=device)
 
             chain1 = kbc.model.get_full_embeddigns(part1)
             chain2 = kbc.model.get_full_embeddigns(part2)
