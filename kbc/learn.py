@@ -10,6 +10,7 @@ import json
 import time
 import argparse
 from typing import Dict
+from pprint import pprint
 
 import torch
 from torch import optim
@@ -73,18 +74,16 @@ def train_kbc(KBC_optimizer, dataset, args):
 							'regularizer':KBC_optimizer.regularizer,
 							'optim_method':KBC_optimizer.optimizer ,
 							'batch_size':KBC_optimizer.batch_size,
-	        				'model_state_dict': KBC_optimizer.model.state_dict(),
-				            'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
-	        				'loss': cur_loss},
-							 os.path.join(model_dir, '{}-model-epoch-{}-{}.pt'.format(args.dataset,epoch,timestamp)))
+							'model_state_dict': KBC_optimizer.model.state_dict(),
+							'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
+							'loss': cur_loss},
+							 os.path.join(model_dir, '{}-model-rank-{}-epoch-{}-{}.pt'.format(args.dataset,args.rank,epoch,timestamp)))
 
 				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
-  					json.dump(vars(args), json_file)
-
-
+					json.dump(vars(args), json_file)
 
 		results = dataset.eval(model, 'test', -1)
-		print("\n\nTEST : ", results)
+		print("\n\nTEST : ", avg_both(*results))
 
 	except RuntimeError as e:
 		print("Training was interupted with error {}".format(str(e)))
@@ -102,7 +101,7 @@ def kbc_model_load(model_path):
 	@returns:
 		model : Class(KBCOptimizer)
 		epoch : The epoch trained until (int)
-		loss  : The last loss stroed in the model
+		loss  : The last loss stored in the model
 	'''
 
 	try:
@@ -110,17 +109,22 @@ def kbc_model_load(model_path):
 		identifiers = model_path.split('/')[-1]
 		identifiers = identifiers.split('-')
 
-		dataset_name, timestamp = identifiers[0].strip(),identifiers[-1][:-3].strip()
+		dataset_name, timestamp = identifiers[0].strip(), identifiers[-1][:-3].strip()
 		if "YAGO" in dataset_name:
 			dataset_name = "YAGO3-10"
+		if 'FB15k' and '237' in identifiers:
+			dataset_name = 'FB15k-237'
 
-		model_dir = os.path.join(os.getcwd(),'models')
+		model_dir = os.path.dirname(model_path)
 
-		with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(dataset_name,timestamp)),'r') as json_file:
+		with open(os.path.join(model_dir, f'{dataset_name}-metadata-{timestamp}.json'), 'r') as json_file:
 			metadata = json.load(json_file)
 
+		map_location = None
+		if not torch.cuda.is_available():
+			map_location = torch.device('cpu')
 
-		checkpoint = torch.load(model_path)
+		checkpoint = torch.load(model_path, map_location=map_location)
 
 		factorizer_name  = checkpoint['factorizer_name']
 		model = None
@@ -133,8 +137,7 @@ def kbc_model_load(model_path):
 			print('Error in Model choices: Please choose CP or ComplEx')
 			return None, None, None
 
-		torch.cuda.empty_cache()
-		device = 'cuda'
+		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 		model.to(device)
 
 		regularizer = checkpoint['regularizer']
@@ -142,10 +145,8 @@ def kbc_model_load(model_path):
 		batch_size = checkpoint['batch_size']
 
 		KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, batch_size)
-
 		KBC_optimizer.model.load_state_dict(checkpoint['model_state_dict'])
 		KBC_optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
 		epoch = checkpoint['epoch']
 		loss = checkpoint['loss']
 
@@ -203,8 +204,7 @@ if __name__ == "__main__":
 
 
 	parser.add_argument(
-		'--dataset', choices=datasets,
-		help="Dataset in {}".format(datasets)
+		'path'
 	)
 
 	models = ['CP', 'ComplEx']
@@ -267,49 +267,43 @@ if __name__ == "__main__":
 		help="Saving the model every N iterations"
 	)
 
+	parser.add_argument('--eval_only', action='store_true', default=False)
+	parser.add_argument('--checkpoint', type=str)
+
 	args = parser.parse_args()
 
-	dataset = Dataset(args.dataset)
+	args.dataset = os.path.basename(args.path)
+
+	dataset = Dataset(os.path.join(args.path, 'kbc_data'))
 	args.data_shape = dataset.get_shape()
-	examples = torch.from_numpy(dataset.get_train().astype('int64'))
 
-	print(len(examples))
+	if not args.eval_only:
+		model = {
+			'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
+			'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
+		}[args.model]()
 
+		regularizer = {
+			'N2': N2(args.reg),
+			'N3': N3(args.reg),
+		}[args.regularizer]
 
-	model = {
-		'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
-		'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
-	}[args.model]()
-
-	regularizer = {
-		'N2': N2(args.reg),
-		'N3': N3(args.reg),
-	}[args.regularizer]
-
-	device = 'cuda'
-	model.to(device)
+		device = 'cuda'
+		model.to(device)
 
 
-	print(vars(args))
-	optim_method = {
-		'Adagrad': lambda: optim.Adagrad(model.parameters(), lr=args.learning_rate),
-		'Adam': lambda: optim.Adam(model.parameters(), lr=args.learning_rate, betas=(args.decay1, args.decay2)),
-		'SGD': lambda: optim.SGD(model.parameters(), lr=args.learning_rate)
-	}[args.optimizer]()
+		pprint(vars(args))
+		optim_method = {
+			'Adagrad': lambda: optim.Adagrad(model.parameters(), lr=args.learning_rate),
+			'Adam': lambda: optim.Adam(model.parameters(), lr=args.learning_rate, betas=(args.decay1, args.decay2)),
+			'SGD': lambda: optim.SGD(model.parameters(), lr=args.learning_rate)
+		}[args.optimizer]()
 
-	KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size)
+		KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, args.batch_size)
 
-	curve, results = train_kbc(KBC_optimizer,dataset,args)
-
-	print(curve, results)
-
-
-	# print(dataset_to_query(args.dataset))
-
-	# else:
-	# 	parser.add_argument(
-	# 		'--model_path',
-	# 		help="Model path"
-	# 	)
-	# 	optimizer,epoch, loss = kbc_model_load('models/WN-epoch-1.pt',model, regularizer, optim_method, args.batch_size)
-	# 	print(optimizer)
+		curve, results = train_kbc(KBC_optimizer,dataset,args)
+	else:
+		kbc, epoch, loss = kbc_model_load(args.checkpoint)
+		for split in ['valid', 'test']:
+			results = dataset.eval(kbc.model, split, -1)
+			print(f"{split}: ", avg_both(*results))

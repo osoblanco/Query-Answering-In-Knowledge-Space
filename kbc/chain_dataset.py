@@ -15,13 +15,15 @@ class Chain():
 class ChaineDataset():
     def __init__(self, dataset: Dataset, threshold:int=1e6):
 
-        self.threshold = threshold
 
-        self.raw_data = dataset
-        self.rhs_missing = self.raw_data.to_skip['rhs']
-        self.lhs_missing = self.raw_data.to_skip['lhs']
+        if dataset is not None:
+            self.threshold = threshold
 
-        self.full_missing = {**self.rhs_missing, **self.lhs_missing}
+            self.raw_data = dataset
+            self.rhs_missing = self.raw_data.to_skip['rhs']
+            self.lhs_missing = self.raw_data.to_skip['lhs']
+
+            self.full_missing = {**self.rhs_missing, **self.lhs_missing}
 
         self.test_set = set((tuple(triple) for triple in self.raw_data.data['test']))
 
@@ -30,11 +32,13 @@ class ChaineDataset():
 
         self.type1_2chain = []
         self.type2_2chain = []
+        self.type2_2chain_u = []
 
         self.type1_3chain = []
         self.type2_3chain = []
         self.type3_3chain = []
         self.type4_3chain = []
+        self.type4_3chain_u = []
 
 
 
