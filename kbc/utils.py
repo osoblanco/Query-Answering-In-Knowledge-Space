@@ -6,12 +6,23 @@ import enum
 import logging
 import subprocess
 
+
+from typing import List, Tuple
 import matplotlib.pyplot as plt
 
 from collections import OrderedDict
 import xml.etree.ElementTree
 import numpy as np
 import torch
+
+
+Device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def make_batches(size: int, batch_size: int) -> List[Tuple[int, int]]:
+    max_batch = int(np.ceil(size / float(batch_size)))
+    res = [(i * batch_size, min(size, (i + 1) * batch_size)) for i in range(0, max_batch)]
+    return res
 
 
 def create_instructions(chains):
@@ -63,6 +74,20 @@ def create_instructions(chains):
                     path_stack.pop()
                     continue
 
+        ans = []
+        for inst in instructions:
+            if ans:
+
+                if 'inter' in inst and ('inter' in ans[-1]):
+                        last_ind = inst.split("_")[-1]
+                        ans[-1] = ans[-1]+f"_{last_ind}"
+                else:
+                    ans.append(inst)
+
+            else:
+                ans.append(inst)
+
+        instructions = ans
 
     except RuntimeError as e:
         print(e)
@@ -79,6 +104,16 @@ def extract(elem, tag, drop_s):
   except ValueError:
     return float(text)
 
+
+def debug_memory():
+    import collections, gc, resource, torch
+    print('maxrss = {}'.format(
+        resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
+    tensors = collections.Counter((str(o.device), o.dtype, tuple(o.shape))
+                                  for o in gc.get_objects()
+                                  if torch.is_tensor(o))
+    for line in tensors.items():
+        print('{}\t{}'.format(*line))
 
 def check_gpu():
     d = OrderedDict()
@@ -100,18 +135,20 @@ def check_gpu():
     	msg = 'GPU status: Busy \n'
 
     now = time.strftime("%c")
-    return ('\n\nUpdated at %s\n\nGPU utilization: %s %%\nVRAM used: %s %%\n\n%s\n\n' % (now, d["gpu_util"],d["mem_used_per"], msg))
+    return ('\nUpdated at %s\nGPU utilization: %s %%\nVRAM used: %s %%\n%s\n' % (now, d["gpu_util"],d["mem_used_per"], msg))
 
 
 class QuerDAG(enum.Enum):
     TYPE1_1 = "1_1"
     TYPE1_2 = "1_2"
     TYPE2_2 = "2_2"
+    TYPE2_2_disj = "2_2_disj"
     TYPE2_2u = "2_2u"
     TYPE1_3 = "1_3"
     TYPE2_3 = "2_3"
     TYPE3_3 = "3_3"
     TYPE4_3 = "4_3"
+    TYPE4_3_disj = "4_3_disj"
     TYPE4_3u = "4_3u"
     TYPE1_3_joint = '1_3_joint'
 
@@ -204,7 +241,7 @@ def get_keys_and_targets(parts, targets, graph_type):
     return target_ids, keys
 
 
-def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
+def preload_env(kbc_path, dataset, graph_type, mode="hard"):
 
     from kbc.learn import kbc_model_load
 
@@ -213,7 +250,11 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
     chain_instructions = []
     try:
 
-        kbc, epoch, loss = kbc_model_load(kbc_path)
+
+        if env.kbc is not None:
+            kbc = env.kbc
+        else:
+            kbc, epoch, loss = kbc_model_load(kbc_path)
 
         for parameter in kbc.model.parameters():
             parameter.requires_grad = False
@@ -221,7 +262,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
         keys = []
         target_ids = {}
 
-        if QuerDAG.TYPE1_2.value in graph_type:
+        if QuerDAG.TYPE1_2.value == graph_type:
 
             raw = dataset.type1_2chain
 
@@ -245,6 +286,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
 
             part1 = flattened_part1
             part2 = flattened_part2
+            targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
 
@@ -271,11 +313,58 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             chains = [chain1,chain2]
             parts = [part1, part2]
 
-        elif QuerDAG.TYPE2_2.value in graph_type:
-            if graph_type == QuerDAG.TYPE2_2u.value:
-                raw = dataset.type2_2chain_u
-            else:
-                raw = dataset.type2_2chain
+        elif QuerDAG.TYPE2_2.value == graph_type:
+            raw = dataset.type2_2chain
+
+            type2_2chain = []
+            for i in range(len(raw)):
+                type2_2chain.append(raw[i].data)
+
+
+            part1 = [x['raw_chain'][0] for x in type2_2chain]
+            part2 = [x['raw_chain'][1] for x in type2_2chain]
+
+
+            flattened_part1 =[]
+            flattened_part2 = []
+
+            targets = []
+            for chain_iter in range(len(part2)):
+                flattened_part2.append([part2[chain_iter][0],part2[chain_iter][1],-(chain_iter+1234)])
+                flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],-(chain_iter+1234)])
+                targets.append(part2[chain_iter][2])
+
+            part1 = flattened_part1
+            part2 = flattened_part2
+            targets = targets
+
+            target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
+
+            if not chain_instructions:
+                chain_instructions = create_instructions([part1[0], part2[0]])
+
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+            part1 = np.array(part1)
+
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
+            part2 = np.array(part2)
+            part2 = torch.tensor(part2.astype('int64'), device=device)
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+            chains = [chain1,chain2]
+            parts = [part1,part2]
+
+        elif QuerDAG.TYPE2_2_disj.value == graph_type:
+            raw = dataset.type2_2_disj_chain
 
             type2_2chain = []
             for i in range(len(raw)):
@@ -296,6 +385,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
 
             part1 = flattened_part1
             part2 = flattened_part2
+            targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2], targets, graph_type)
 
@@ -322,8 +412,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             chains = [chain1,chain2]
             parts = [part1,part2]
 
-
-        elif QuerDAG.TYPE1_3.value in graph_type:
+        elif QuerDAG.TYPE1_3.value == graph_type:
             raw = dataset.type1_3chain
 
             type1_3chain = []
@@ -351,6 +440,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             part1 = flattened_part1
             part2 = flattened_part2
             part3 = flattened_part3
+            targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2, part3], targets, graph_type)
 
@@ -382,7 +472,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             chains = [chain1,chain2,chain3]
             parts = [part1, part2, part3]
 
-        elif QuerDAG.TYPE2_3.value in graph_type:
+        elif QuerDAG.TYPE2_3.value == graph_type:
             raw = dataset.type2_3chain
 
             type2_3chain = []
@@ -407,6 +497,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             part1 = flattened_part1
             part2 = flattened_part2
             part3 = flattened_part3
+            targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2, part3], targets, graph_type)
 
@@ -438,7 +529,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             chains = [chain1,chain2,chain3]
             parts = [part1,part2,part3]
 
-        elif QuerDAG.TYPE3_3.value in graph_type:
+        elif QuerDAG.TYPE3_3.value == graph_type:
 
             raw = dataset.type3_3chain
 
@@ -467,6 +558,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             part1 = flattened_part1
             part2 = flattened_part2
             part3 = flattened_part3
+            targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2, part3], targets, graph_type)
 
@@ -499,11 +591,8 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             chains = [chain1,chain2,chain3]
             parts = [part1, part2, part3]
 
-        elif QuerDAG.TYPE4_3.value in graph_type:
-            if graph_type == QuerDAG.TYPE4_3u.value:
-                raw = dataset.type4_3chain_u
-            else:
-                raw = dataset.type4_3chain
+        elif QuerDAG.TYPE4_3.value == graph_type:
+            raw = dataset.type4_3chain
 
             type4_3chain = []
             for i in range(len(raw)):
@@ -527,10 +616,67 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
                 flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],part1[chain_iter][2]])
                 targets.append(part3[chain_iter][2])
 
+            part1 = flattened_part1
+            part2 = flattened_part2
+            part3 = flattened_part3
+            targets = targets
+
+            target_ids, keys = get_keys_and_targets([part1, part2, part3], targets, graph_type)
+
+            if not chain_instructions:
+                chain_instructions = create_instructions([part1[0], part2[0], part3[0]])
+
+            part1 = np.array(part1)
+            part1 = torch.from_numpy(part1.astype('int64')).cuda()
+
+            part2 = np.array(part2)
+            part2 = torch.from_numpy(part2.astype('int64')).cuda()
+
+            part3 = np.array(part3)
+            part3 = torch.from_numpy(part3.astype('int64')).cuda()
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+            chain2 = kbc.model.get_full_embeddigns(part2)
+            chain3 = kbc.model.get_full_embeddigns(part3)
+
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+            chains = [chain1,chain2,chain3]
+            parts = [part1,part2,part3]
+
+        elif QuerDAG.TYPE4_3_disj.value == graph_type:
+            raw = dataset.type4_3_disj_chain
+
+            type4_3chain = []
+            for i in range(len(raw)):
+                type4_3chain.append(raw[i].data)
+
+
+            part1 = [x['raw_chain'][0] for x in type4_3chain]
+            part2 = [x['raw_chain'][1] for x in type4_3chain]
+            part3 = [x['raw_chain'][2] for x in type4_3chain]
+
+
+            flattened_part1 =[]
+            flattened_part2 = []
+            flattened_part3 = []
+
+            # [A,r_1,B][C,r_2,B][B, r_3, [D's]]
+            targets = []
+            for chain_iter in range(len(part3)):
+                flattened_part3.append([part3[chain_iter][0],part3[chain_iter][1],-(chain_iter+1234)])
+                flattened_part2.append([part2[chain_iter][0],part2[chain_iter][1],part2[chain_iter][2]])
+                flattened_part1.append([part1[chain_iter][0],part1[chain_iter][1],part1[chain_iter][2]])
+                targets.append(part3[chain_iter][2])
 
             part1 = flattened_part1
             part2 = flattened_part2
             part3 = flattened_part3
+            targets = targets
 
             target_ids, keys = get_keys_and_targets([part1, part2, part3], targets, graph_type)
 
@@ -560,6 +706,7 @@ def preload_env(kbc_path, dataset, graph_type, mode = "hard"):
             lhs_norm/= len(chain1[0])
             chains = [chain1,chain2,chain3]
             parts = [part1,part2,part3]
+
 
         else:
             chains = dataset['chains']

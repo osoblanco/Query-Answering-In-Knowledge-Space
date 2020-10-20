@@ -137,8 +137,6 @@ def kbc_model_load(model_path):
 			print('Error in Model choices: Please choose CP or ComplEx')
 			return None, None, None
 
-		torch.cuda.empty_cache()
-
 		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 		model.to(device)
 
@@ -147,11 +145,8 @@ def kbc_model_load(model_path):
 		batch_size = checkpoint['batch_size']
 
 		KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, batch_size)
-
-
 		KBC_optimizer.model.load_state_dict(checkpoint['model_state_dict'])
 		KBC_optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
 		epoch = checkpoint['epoch']
 		loss = checkpoint['loss']
 

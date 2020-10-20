@@ -1,5 +1,6 @@
 import argparse
 import pickle
+import json
 
 import torch
 
@@ -25,55 +26,53 @@ from kbc.metrics import evaluation
 
 
 
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min', candidates = 3):
+	experiments = ['1_2','1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+	# experiments = ['2_2_disj', '4_3_disj']
+	# experiments = ['4_3_disj']
+	# experiments = ['1_3', '4_3']
+	# experiments = ['2_3']
+
+	for exp in experiments:
+		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp, candidates)
+
+		with open(f'{dataset_name}_{t_norm}_{exp}.json', 'w') as fp:
+			json.dump(metrics, fp)
 
 
-def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2'):
+def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2', candidates = 3):
+	metrics = {}
 	try:
-
-		#
-		# print(len(dataset_hard.type1_2chain))
-		# print(len(dataset_hard.type2_2chain))
-		# print(len(dataset_hard.type2_3chain))
-		# print(len(dataset_hard.type1_3chain))
-		# print(len(dataset_hard.type3_3chain))
-		# print(len(dataset_hard.type4_3chain))
 
 		env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 		env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
-		print(len(env.target_ids_hard))
 
 		if '1' in env.chain_instructions[-1][-1]:
 			part1, part2 = env.parts
 		elif '2' in env.chain_instructions[-1][-1]:
 			part1, part2, part3 = env.parts
 
-		# part1, part2, part3 = env.parts
+		kbc = env.kbc
 
-		# keys = env.keys
-		# target_ids,lhs_norm  = env.target_ids, env.lhs_norm
-		kbc, chains = env.kbc, env.chains
-		#
-		#
-		# indices_rankedby_distances =  kbc.model.query_answering_BF(env , kbc.regularizer, 2)
-		#
-		# hits = hits_at_k(indices_rankedby_distances, target_ids, keys, hits = [1,3])
+		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, candidates ,similarity_metric = similarity_metric, t_norm = t_norm , batch_size = 1)
+		print(scores.shape)
+		torch.cuda.empty_cache()
 
-		# APR = average_percentile_rank(indices_rankedby_distances,target_ids, keys)
 
 		queries = env.keys_hard
 		test_ans_hard = env.target_ids_hard
 		test_ans = 	env.target_ids_complete
-		scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
-
+		# scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
+		#
 		metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
 		print(metrics)
 
 
 	except RuntimeError as e:
 		print("Cannot answer the query with a Brute Force: ", e)
-		return None
-	return None
+		return metrics
+	return metrics
 
 
 if __name__ == "__main__":
@@ -86,7 +85,7 @@ if __name__ == "__main__":
 	chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
 	QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
 
-	t_norms = ['min','product']
+	t_norms = ['min','max','product']
 
 	parser = argparse.ArgumentParser(
 	description="Query Answering BF namespace"
@@ -122,6 +121,11 @@ if __name__ == "__main__":
 	help="T-norms available are ".format(t_norms)
 	)
 
+	parser.add_argument(
+	'--candidates', default=5,
+	help="Candidate amount for beam search"
+	)
+
 	args = parser.parse_args()
 
 	data_hard_path = args.dataset+'_hard.pkl'
@@ -130,4 +134,6 @@ if __name__ == "__main__":
 	data_hard = pickle.load(open(data_hard_path,'rb'))
 	data_complete = pickle.load(open(data_complete_path,'rb'))
 
-	query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
+	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
+	candidates = int(args.candidates)
+	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, similarity_metric = 'l2', t_norm = args.t_norm, candidates = candidates)
