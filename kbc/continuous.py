@@ -4,12 +4,14 @@ import os.path as osp
 from pathlib import Path
 import json
 
+import torch
+
 from kbc.utils import QuerDAG
 from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-def main(args):
+def score_queries(args):
     mode = args.dataset_mode
 
     script_path = osp.dirname(Path(__file__).absolute())
@@ -24,7 +26,8 @@ def main(args):
 
     # Instantiate singleton KBC object
     preload_env(args.model_path, data_hard, args.chain_type, mode='hard')
-    env = preload_env(args.model_path, data_complete, args.chain_type, mode='complete')
+    env = preload_env(args.model_path, data_complete, args.chain_type,
+                      mode='complete')
 
     queries = env.keys_hard
     test_ans_hard = env.target_ids_hard
@@ -43,7 +46,8 @@ def main(args):
                                            max_steps=1000,
                                            t_norm=args.t_norm)
 
-    elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE3_3.value):
+    elif args.chain_type in (
+    QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE3_3.value):
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
                                                   max_steps=1000,
                                                   t_norm=args.t_norm,
@@ -54,7 +58,8 @@ def main(args):
                                                  max_steps=1000,
                                                  t_norm=args.t_norm)
 
-    elif args.chain_type in (QuerDAG.TYPE4_3.value, QuerDAG.TYPE4_3_disj.value):
+    elif args.chain_type in (
+    QuerDAG.TYPE4_3.value, QuerDAG.TYPE4_3_disj.value):
         scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,
                                                  max_steps=1000,
                                                  t_norm=args.t_norm,
@@ -62,12 +67,18 @@ def main(args):
     else:
         raise ValueError(f'Uknown query type {args.chain_type}')
 
+    return scores, queries, test_ans, test_ans_hard
+
+
+def main(args):
+    scores, queries, test_ans, test_ans_hard = score_queries(args)
+    torch.cuda.empty_cache()
     metrics = evaluation(scores, queries, test_ans, test_ans_hard)
     print(metrics)
 
     model_name = osp.splitext(osp.basename(args.model_path))[0]
     reg_str = f'-{args.reg}' if args.reg is not None else ''
-    with open(f'{model_name}-{args.chain_type}{reg_str}-{mode}.json', 'w') as f:
+    with open(f'{model_name}-{args.chain_type}{reg_str}-{args.dataset_mode}.json', 'w') as f:
         json.dump(metrics, f)
 
 
