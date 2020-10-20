@@ -79,6 +79,7 @@ def prepare_dataset(path):
             with open(file_path, 'r') as to_read:
                 for line in to_read.readlines():
                     lhs, rel, rhs = line.strip().split('\t')
+                    print(rel)
                     entities.add(lhs)
                     entities.add(rhs)
                     relations.add(rel)

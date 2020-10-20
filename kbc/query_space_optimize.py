@@ -4,10 +4,10 @@ import os.path as osp
 from pathlib import Path
 import json
 
+
 from kbc.utils import QuerDAG
 from kbc.utils import preload_env
 from kbc.metrics import evaluation
-
 
 def main(args):
     mode = args.dataset_mode
