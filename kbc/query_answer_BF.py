@@ -61,7 +61,7 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 		test_ans = 	env.target_ids_complete
 		# scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
 		#
-		metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
+		metrics = evaluation(scores, queries, test_ans, test_ans_hard)
 		print(metrics)
 
 
