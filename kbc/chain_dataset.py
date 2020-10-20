@@ -25,7 +25,7 @@ class ChaineDataset():
 
             self.full_missing = {**self.rhs_missing, **self.lhs_missing}
 
-        self.test_set = set((tuple(triple) for triple in self.raw_data.data['test']))
+            self.test_set = set((tuple(triple) for triple in self.raw_data.data['test']))
 
         self.neighbour_relations = {}
         self.reverse_maps = {}

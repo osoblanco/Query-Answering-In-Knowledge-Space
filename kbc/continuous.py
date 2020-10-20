@@ -35,14 +35,15 @@ def main(args):
     if args.reg is not None:
         env.kbc.regularizer.weight = args.reg
 
-    disjunctive = args.chain_type in (QuerDAG.TYPE2_2u.value, QuerDAG.TYPE4_3u.value)
+    disjunctive = args.chain_type in (QuerDAG.TYPE2_2_disj.value,
+                                      QuerDAG.TYPE4_3_disj.value)
 
     if args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
                                            max_steps=1000,
                                            t_norm=args.t_norm)
 
-    elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2u.value, QuerDAG.TYPE3_3.value):
+    elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE3_3.value):
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
                                                   max_steps=1000,
                                                   t_norm=args.t_norm,
@@ -53,7 +54,7 @@ def main(args):
                                                  max_steps=1000,
                                                  t_norm=args.t_norm)
 
-    elif args.chain_type in (QuerDAG.TYPE4_3.value, QuerDAG.TYPE4_3u.value):
+    elif args.chain_type in (QuerDAG.TYPE4_3.value, QuerDAG.TYPE4_3_disj.value):
         scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,
                                                  max_steps=1000,
                                                  t_norm=args.t_norm,

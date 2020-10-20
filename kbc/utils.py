@@ -143,13 +143,11 @@ class QuerDAG(enum.Enum):
     TYPE1_2 = "1_2"
     TYPE2_2 = "2_2"
     TYPE2_2_disj = "2_2_disj"
-    TYPE2_2u = "2_2u"
     TYPE1_3 = "1_3"
     TYPE2_3 = "2_3"
     TYPE3_3 = "3_3"
     TYPE4_3 = "4_3"
     TYPE4_3_disj = "4_3_disj"
-    TYPE4_3u = "4_3u"
     TYPE1_3_joint = '1_3_joint'
 
 

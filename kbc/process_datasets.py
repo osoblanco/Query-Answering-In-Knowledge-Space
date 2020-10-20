@@ -162,8 +162,8 @@ translator_dict = {'1c': '1chain1', '1c_hard': '1chain1_hard',
                    'ci': '3chain3', 'ci_hard': '3chain3_hard',
                    '3i': '2chain3', '3i_hard': '2chain3_hard',
                    'ic': '4chain3', 'ic_hard': '4chain3_hard',
-                   '2u': '2chain2u',
-                   'uc': '4chain3u'}
+                   '2u': '2chain2_disj',
+                   'uc': '4chain3_disj'}
 
 
 def convert_q2b_queries(path, split):
@@ -215,10 +215,10 @@ def get_hard_dataset(path, files, mode='hard'):
                     chain_dataset.type3_3chain = chains
                 elif '4chain3' == chain_type_cast:
                     chain_dataset.type4_3chain = chains
-                elif '2chain2u' == chain_type_cast:
-                    chain_dataset.type2_2chain_u = chains
-                elif '4chain3u' == chain_type_cast:
-                    chain_dataset.type4_3chain_u = chains
+                elif '2chain2_disj' == chain_type_cast:
+                    chain_dataset.type2_2_disj_chain = chains
+                elif '4chain3_disj' == chain_type_cast:
+                    chain_dataset.type4_3_disj_chain = chains
 
     except RuntimeError as e:
         print("Cannot cast dataset with error: ", e)
