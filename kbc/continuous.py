@@ -3,12 +3,11 @@ import pickle
 import os.path as osp
 from pathlib import Path
 import json
-import torch
-
 
 from kbc.utils import QuerDAG
 from kbc.utils import preload_env
 from kbc.metrics import evaluation
+
 
 def main(args):
     mode = args.dataset_mode
@@ -61,9 +60,6 @@ def main(args):
                                                  disjunctive=disjunctive)
     else:
         raise ValueError(f'Uknown query type {args.chain_type}')
-
-    del env.kbc, kbc
-    torch.cuda.empty_cache()
 
     metrics = evaluation(scores, queries, test_ans, test_ans_hard)
     print(metrics)
