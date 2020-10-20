@@ -19,7 +19,6 @@ from torch.utils.data import DataLoader
 from kbc.regularizers import Regularizer
 import tqdm
 
-import GPUtil
 import traceback
 
 import gc

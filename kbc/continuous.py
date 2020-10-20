@@ -3,6 +3,7 @@ import pickle
 import os.path as osp
 from pathlib import Path
 import json
+import torch
 
 
 from kbc.utils import QuerDAG
@@ -35,14 +36,14 @@ def main(args):
     if args.reg is not None:
         env.kbc.regularizer.weight = args.reg
 
-    disjunctive = args.chain in (QuerDAG.TYPE2_2u.value, QuerDAG.TYPE4_3u.value)
+    disjunctive = args.chain_type in (QuerDAG.TYPE2_2u.value, QuerDAG.TYPE4_3u.value)
 
-    if args.chain in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
+    if args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
                                            max_steps=1000,
                                            t_norm=args.t_norm)
 
-    elif args.chain in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2u.value, QuerDAG.TYPE3_3.value):
+    elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2u.value, QuerDAG.TYPE3_3.value):
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
                                                   max_steps=1000,
                                                   t_norm=args.t_norm,
@@ -60,6 +61,9 @@ def main(args):
                                                  disjunctive=disjunctive)
     else:
         raise ValueError(f'Uknown query type {args.chain_type}')
+
+    del env.kbc, kbc
+    torch.cuda.empty_cache()
 
     metrics = evaluation(scores, queries, test_ans, test_ans_hard)
     print(metrics)
