@@ -7,7 +7,6 @@ import torch
 
 import numpy as np
 
-from kbc.exhaustive_objective_search import exhaustive_objective_search
 
 from kbc.learn import kbc_model_load
 from kbc.learn import dataset_to_query
