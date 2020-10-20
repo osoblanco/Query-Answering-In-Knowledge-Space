@@ -4,187 +4,91 @@ import os.path as osp
 from pathlib import Path
 import json
 
-import torch
-
 from kbc.utils import QuerDAG
 from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-def optimize_chains(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
-    env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
-    env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
+def main(args):
+    mode = args.dataset_mode
 
-    kbc, chains = env.kbc, env.chains
+    script_path = osp.dirname(Path(__file__).absolute())
 
-    queries = env.keys_hard
-    test_ans_hard = env.target_ids_hard
-    test_ans = env.target_ids_complete
+    data_hard_path = osp.join(script_path, 'data', args.dataset,
+                              f'{args.dataset}_{mode}_hard.pkl')
+    data_complete_path = osp.join(script_path, 'data', args.dataset,
+                                  f'{args.dataset}_{mode}_complete.pkl')
 
-    if reg is not None:
-        print('Changing regularizer...')
-        kbc.regularizer.weight = reg
+    data_hard = pickle.load(open(data_hard_path, 'rb'))
+    data_complete = pickle.load(open(data_complete_path, 'rb'))
 
-    scores = kbc.model.optimize_chains(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
-
-    print('Evaluating metrics')
-    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
-
-    return metrics
-
-
-def optimize_intersections(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
-    env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
-    env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
-
-    kbc, chains = env.kbc, env.chains
+    # Instantiate singleton KBC object
+    preload_env(args.model_path, data_hard, args.chain_type, mode='hard')
+    env = preload_env(args.model_path, data_complete, args.chain_type, mode='complete')
 
     queries = env.keys_hard
     test_ans_hard = env.target_ids_hard
     test_ans = env.target_ids_complete
+    chains = env.chains
+    kbc = env.kbc
 
-    if reg is not None:
-        kbc.regularizer.weight = reg
+    if args.reg is not None:
+        env.kbc.regularizer.weight = args.reg
 
-    scores = kbc.model.optimize_intersections(chains, kbc.regularizer, max_steps=1000,
-                                              similarity_metric=similarity_metric, t_norm=t_norm,
-                                              disjunctive=query_type == QuerDAG.TYPE2_2u.value)
-    torch.cuda.empty_cache()
-    print('Evaluating metrics')
-    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
+    disjunctive = args.chain in (QuerDAG.TYPE2_2u.value, QuerDAG.TYPE4_3u.value)
 
-    return metrics
+    if args.chain in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
+        scores = kbc.model.optimize_chains(chains, kbc.regularizer,
+                                           max_steps=1000,
+                                           t_norm=args.t_norm)
 
+    elif args.chain in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2u.value, QuerDAG.TYPE3_3.value):
+        scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
+                                                  max_steps=1000,
+                                                  t_norm=args.t_norm,
+                                                  disjunctive=disjunctive)
 
-def get_type43_graph_optimization(query_type, kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
-    env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
-    env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
+    elif args.chain_type == QuerDAG.TYPE3_3.value:
+        scores = kbc.model.type3_3chain_optimize(chains, kbc.regularizer,
+                                                 max_steps=1000,
+                                                 t_norm=args.t_norm)
 
-    kbc, chains = env.kbc, env.chains
+    elif args.chain_type in (QuerDAG.TYPE4_3.value, QuerDAG.TYPE4_3u.value):
+        scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,
+                                                 max_steps=1000,
+                                                 t_norm=args.t_norm,
+                                                 disjunctive=disjunctive)
+    else:
+        raise ValueError(f'Uknown query type {args.chain_type}')
 
-    queries = env.keys_hard
-    test_ans_hard = env.target_ids_hard
-    test_ans = env.target_ids_complete
+    metrics = evaluation(scores, queries, test_ans, test_ans_hard)
+    print(metrics)
 
-    if reg is not None:
-        kbc.regularizer.weight = reg
-
-    scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm,
-                                             disjunctive=query_type == QuerDAG.TYPE4_3u.value)
-
-    print('Evaluating metrics')
-    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
-
-    return metrics
-
-
-def get_type33_graph_optimization(kbc_path, dataset_hard, dataset_complete, similarity_metric ='l2', t_norm ='min', reg=None):
-    env = preload_env(kbc_path, dataset_hard, '3_3', mode='hard')
-    env = preload_env(kbc_path, dataset_complete, '3_3', mode='complete')
-
-    kbc, chains = env.kbc, env.chains
-
-    queries = env.keys_hard
-    test_ans_hard = env.target_ids_hard
-    test_ans = env.target_ids_complete
-
-    if reg is not None:
-        kbc.regularizer.weight = reg
-
-    scores = kbc.model.type3_3chain_optimize(chains, kbc.regularizer, max_steps=1000, similarity_metric=similarity_metric, t_norm=t_norm)
-    torch.cuda.empty_cache()
-    print('Evaluating metrics')
-    metrics = evaluation(scores, queries, test_ans, test_ans_hard, env)
-
-    return metrics
+    model_name = osp.splitext(osp.basename(args.model_path))[0]
+    reg_str = f'-{args.reg}' if args.reg is not None else ''
+    with open(f'{model_name}-{args.chain_type}{reg_str}-{mode}.json', 'w') as f:
+        json.dump(metrics, f)
 
 
 if __name__ == "__main__":
 
     datasets = ['FB15k', 'FB15k-237', 'NELL']
     dataset_modes = ['valid', 'test', 'train']
-    similarity_metrics = ['l2', 'Eculidian', 'cosine']
-
-    chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value,
-    QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e',
-                   QuerDAG.TYPE2_2u.value, QuerDAG.TYPE4_3u.value]
+    chain_types = [t.value for t in QuerDAG]
 
     t_norms = ['min', 'product']
 
-    parser = argparse.ArgumentParser(
-    description="Query space optimizer namespace"
-    )
+    parser = argparse.ArgumentParser(description="Query space optimizer namespace")
+    parser.add_argument('--model_path', help="The path to the KBC model. Can be both relative and full")
+    parser.add_argument('--dataset', choices=datasets, help="Dataset in {}".format(datasets))
+    parser.add_argument('--dataset_mode', choices=dataset_modes, default='train',
+                        help="Dataset validation mode in {}".format(dataset_modes))
+    parser.add_argument('--similarity_metric', default='l2')
 
-    parser.add_argument(
-    '--model_path',
-    help="The path to the KBC model. Can be both relative and full"
-    )
+    parser.add_argument('--chain_type', choices=chain_types, default=QuerDAG.TYPE1_1.value,
+                        help="Chain type experimenting for ".format(chain_types))
 
-    parser.add_argument(
-    '--dataset', choices=datasets,
-    help="Dataset in {}".format(datasets)
-    )
+    parser.add_argument('--t_norm', choices=t_norms, default='min', help="T-norms available are ".format(t_norms))
+    parser.add_argument('--reg', type=float, help='Regularization coefficient', default=None)
 
-    parser.add_argument(
-    '--dataset_mode', choices=dataset_modes, default='train',
-    help="Dataset validation mode in {}".format(dataset_modes)
-    )
-
-    parser.add_argument(
-    '--similarity_metric', choices=similarity_metrics, default='l2',
-    help="Dataset validation mode in {}".format(similarity_metrics)
-    )
-
-    parser.add_argument(
-    '--chain_type', choices=chain_types, default=QuerDAG.TYPE1_1.value,
-    help="Chain type experimenting for ".format(chain_types)
-    )
-
-    parser.add_argument(
-    '--t_norm', choices=t_norms, default='min',
-    help="T-norms available are ".format(t_norms)
-    )
-
-    parser.add_argument('--reg', type=float, help='Regularization coefficient',
-                        default=None)
-
-    args = parser.parse_args()
-    mode = args.dataset_mode
-
-    script_path = osp.dirname(Path(__file__).absolute())
-
-    data_hard_path = osp.join(script_path, 'data', args.dataset, f'{args.dataset}_{mode}_hard.pkl')
-    data_complete_path = osp.join(script_path, 'data', args.dataset, f'{args.dataset}_{mode}_complete.pkl')
-
-    data_hard = pickle.load(open(data_hard_path, 'rb'))
-    data_complete = pickle.load(open(data_complete_path, 'rb'))
-
-    if QuerDAG.TYPE1_2.value == args.chain_type:
-        ans = optimize_chains(QuerDAG.TYPE1_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-
-    if QuerDAG.TYPE2_2.value == args.chain_type:
-        ans = optimize_intersections(QuerDAG.TYPE2_2.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-
-    if QuerDAG.TYPE2_2u.value == args.chain_type:
-        ans = optimize_intersections(QuerDAG.TYPE2_2u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-
-    if QuerDAG.TYPE1_3.value == args.chain_type:
-        ans = optimize_chains(QuerDAG.TYPE1_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-
-    if QuerDAG.TYPE2_3.value == args.chain_type:
-        ans = optimize_intersections(QuerDAG.TYPE2_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-
-    if QuerDAG.TYPE3_3.value == args.chain_type:
-        ans = get_type33_graph_optimization(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-
-    if QuerDAG.TYPE4_3.value == args.chain_type:
-        ans = get_type43_graph_optimization(QuerDAG.TYPE4_3.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-    if QuerDAG.TYPE4_3u.value == args.chain_type:
-        ans = get_type43_graph_optimization(QuerDAG.TYPE4_3u.value, args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.reg)
-
-    print(ans)
-
-    model_name = osp.splitext(osp.basename(args.model_path))[0]
-    reg_str = f'-{args.reg}' if args.reg is not None else ''
-    with open(f'{model_name}-{args.chain_type}{reg_str}-{mode}.json', 'w') as f:
-        json.dump(ans, f)
+    main(parser.parse_args())
