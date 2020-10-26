@@ -10,16 +10,19 @@ for d in dsets:
     for r in ranks:
         for t in tnorms:
             for c in candidates:
+                for is_dev in [True, False]:
 
-                m = d
-                if d == 'FB237':
-                    m = "FB15k-237"
-                elif d == 'FB15K':
-                    m = 'FB15k'
+                    m = d
+                    if d == 'FB237':
+                        m = "FB15k-237"
+                    elif d == 'FB15K':
+                        m = 'FB15k'
 
-                cmd = f"PYTHONPATH=. python3 kbc/query_answer_BF.py --model_path models/{m}-model-rank-{r}-epoch-100-*.pt " \
-                    f"--dataset {d}_dev --dataset_mode test --t_norm {t} --candidates {c}"
+                    _d = d if is_dev is False else f'{d}_dev'
 
-                _id = f"topk_dev_d={d}_r={r}_t={t}_c={c}"
+                    cmd = f"PYTHONPATH=. python3 kbc/query_answer_BF.py --model_path models/{m}-model-rank-{r}-epoch-100-*.pt " \
+                        f"--dataset {_d} --dataset_mode test --t_norm {t} --candidates {c}"
 
-                print(f"{cmd} > logs/topk_dev_{_id}.log")
+                    _id = f"topk_d={_d}_r={r}_t={t}_c={c}"
+
+                    print(f"{cmd} > logs/topk/topk_{_id}.log")
