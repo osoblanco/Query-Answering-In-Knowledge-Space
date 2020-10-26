@@ -27,12 +27,15 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	# experiments = ['1_3', '4_3']
 	# experiments = ['2_3']
 
-	print(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric, t_norm, candidates)
+	print(kbc_path, dataset_name, similarity_metric, t_norm, candidates)
+
+	path_entries = kbc_path.split('-')
+	rank = path_entries[path_entries.index('rank') + 1] if 'rank' in path_entries else 'None'
 
 	for exp in experiments:
 		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp, candidates)
 
-		with open(f'd={dataset_name}_t={t_norm}_e={exp}_c={candidates}.json', 'w') as fp:
+		with open(f'd={dataset_name}_t={t_norm}_e={exp}_rank={rank}_k={candidates}.json', 'w') as fp:
 			json.dump(metrics, fp)
 
 
