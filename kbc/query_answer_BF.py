@@ -27,6 +27,8 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	# experiments = ['1_3', '4_3']
 	# experiments = ['2_3']
 
+	print(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric, t_norm, candidates)
+
 	for exp in experiments:
 		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp, candidates)
 
