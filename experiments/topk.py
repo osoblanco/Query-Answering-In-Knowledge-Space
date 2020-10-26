@@ -25,4 +25,4 @@ for d in dsets:
 
                     _id = f"topk_d={_d}_r={r}_t={t}_c={c}"
 
-                    print(f"{cmd} > logs/topk/topk_{_id}.log")
+                    print(f"{cmd} > logs/topk/topk_{_id}.log 2>&1")
