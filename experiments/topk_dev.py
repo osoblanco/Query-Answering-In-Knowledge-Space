@@ -4,7 +4,7 @@
 dsets = ['FB15K', 'FB237', 'NELL']
 ranks = [100, 200, 500, 1000]
 tnorms = ['min', 'product']
-candidates = [3, 4, 5]
+candidates = [3, 4, 5, 6]
 
 for d in dsets:
     for r in ranks:
@@ -22,4 +22,4 @@ for d in dsets:
 
                 _id = f"topk_dev_d={d}_r={r}_t={t}_c={c}"
 
-                print(f"{cmd} > logs/{_id}.log 2>&1 ; mkdir -p logs/{_id} ; mv *.json logs/{_id}")
+                print(f"{cmd} > logs/topk_dev_{_id}.log")
