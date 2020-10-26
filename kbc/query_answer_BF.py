@@ -4,9 +4,7 @@ import json
 
 import torch
 
-
 import numpy as np
-
 
 from kbc.learn import kbc_model_load
 from kbc.learn import dataset_to_query
@@ -32,42 +30,35 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	for exp in experiments:
 		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp, candidates)
 
-		with open(f'{dataset_name}_{t_norm}_{exp}.json', 'w') as fp:
+		with open(f'd={dataset_name}_t={t_norm}_e={exp}_c={candidates}.json', 'w') as fp:
 			json.dump(metrics, fp)
 
 
 def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2', candidates = 3):
 	metrics = {}
-	try:
 
-		env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
-		env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
-
-
-		if '1' in env.chain_instructions[-1][-1]:
-			part1, part2 = env.parts
-		elif '2' in env.chain_instructions[-1][-1]:
-			part1, part2, part3 = env.parts
-
-		kbc = env.kbc
-
-		scores =  kbc.model.query_answering_BF(env , kbc.regularizer, candidates ,similarity_metric = similarity_metric, t_norm = t_norm , batch_size = 1)
-		print(scores.shape)
-		torch.cuda.empty_cache()
+	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
+	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
 
-		queries = env.keys_hard
-		test_ans_hard = env.target_ids_hard
-		test_ans = 	env.target_ids_complete
-		# scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
-		#
-		metrics = evaluation(scores, queries, test_ans, test_ans_hard)
-		print(metrics)
+	if '1' in env.chain_instructions[-1][-1]:
+		part1, part2 = env.parts
+	elif '2' in env.chain_instructions[-1][-1]:
+		part1, part2, part3 = env.parts
 
+	kbc = env.kbc
 
-	except RuntimeError as e:
-		print("Cannot answer the query with a Brute Force: ", e)
-		return metrics
+	scores =  kbc.model.query_answering_BF(env , kbc.regularizer, candidates ,similarity_metric = similarity_metric, t_norm = t_norm , batch_size = 1)
+	print(scores.shape)
+
+	queries = env.keys_hard
+	test_ans_hard = env.target_ids_hard
+	test_ans = 	env.target_ids_complete
+	# scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
+	#
+	metrics = evaluation(scores, queries, test_ans, test_ans_hard)
+	print(metrics)
+
 	return metrics
 
 
