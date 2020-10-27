@@ -23,10 +23,10 @@ from kbc.metrics import evaluation
 
 
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min', candidates = 3):
-	experiments = ['1_2','1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+	experiments = ['2_2','2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
-	# experiments = ['1_3', '4_3']
+	# experiments = ['3_3', '4_3']
 	# experiments = ['2_3']
 
 	for exp in experiments:

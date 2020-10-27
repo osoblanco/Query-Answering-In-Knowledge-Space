@@ -768,12 +768,15 @@ class KBCModel(nn.Module, ABC):
 		else:
 			objective = self.t_norm
 
+
 		chains, chain_instructions = env.chains, env.chain_instructions
 
 		nb_queries, embedding_size = chains[0][0].shape[0], chains[0][0].shape[1]
 
 
 		scores = None
+
+		# print(chain_instructions)
 
 		# data_loader = DataLoader(dataset=chains, batch_size=16, shuffle=False)
 
@@ -886,7 +889,7 @@ class KBCModel(nn.Module, ABC):
 							rel = rel.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
 							rel = rel.view(-1, embedding_size)
 
-							if interesction_num > 1:
+							if interesction_num > 0:
 								batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 								rhs = rhs_3d.view(-1, embedding_size)
 								z_scores = self.score_fixed(rel, lhs, rhs, candidates)
@@ -894,6 +897,7 @@ class KBCModel(nn.Module, ABC):
 								z_scores_1d = z_scores.view(-1)
 								if 'disj' in env.graph_type:
 									z_scores_1d = torch.sigmoid(z_scores_1d)
+
 
 								batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores, t_norm)
 
@@ -909,6 +913,7 @@ class KBCModel(nn.Module, ABC):
 								if 'disj' in env.graph_type:
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
+
 								nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
 								nb_branches = nb_sources // batch_size
 
@@ -920,9 +925,13 @@ class KBCModel(nn.Module, ABC):
 
 								candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
 
-								if last_step:
-									candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
-
+								if ind == indices[0]:
+									count = len(indices)-1
+									iterator = 1
+									while count > 0:
+										candidate_cache[f"rhs_{ind+iterator}"] = (batch_scores, rhs_3d)
+										iterator += 1
+										count -= 1
 							else:
 								batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 								candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
