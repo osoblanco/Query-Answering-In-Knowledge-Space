@@ -71,13 +71,17 @@ def score_queries(args):
 
 def main(args):
     scores, queries, test_ans, test_ans_hard = score_queries(args)
-    torch.cuda.empty_cache()
     metrics = evaluation(scores, queries, test_ans, test_ans_hard)
+    
     print(metrics)
 
     model_name = osp.splitext(osp.basename(args.model_path))[0]
-    reg_str = f'-{args.reg}' if args.reg is not None else ''
-    with open(f'{model_name}-{args.chain_type}{reg_str}-{args.dataset_mode}.json', 'w') as f:
+    reg_str = f'{args.reg}' if args.reg is not None else 'None'
+    
+    # path_entries = args.model_path.split('-')
+    # rank_str = path_entries[path_entries.index('rank') + 1] if 'rank' in path_entries else 'None'
+
+    with open(f'cont_n={model_name}_t={args.chain_type}_r={reg_str}_m={args.dataset_mode}.json', 'w') as f:
         json.dump(metrics, f)
 
 
