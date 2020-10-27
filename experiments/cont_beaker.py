@@ -21,7 +21,7 @@ for d in dsets:
 
                         cmd = f"PYTHONPATH=. python3 kbc/continuous.py --model_path models/{m}-model-rank-{r}-epoch-100-*.pt --dataset {d} --dataset_mode {dev} --chain_type {q} --reg {w}"
                         
-                        _id = f"topk_d={d}_r={r}_t={t}_w={w}_dev={dev}_q={q}"
+                        _id = f"cont_d={d}_r={r}_t={t}_w={w}_dev={dev}_q={q}"
 
                         cmd_lines += [f"{cmd} > logs/cont/cont_{_id}.log 2>&1"]
 
