@@ -14,7 +14,7 @@ for d in dsets:
     for r in ranks:
         for t in tnorms:
             for w in weights:
-                for dev in ['dev', 'test']:
+                for dev in ['valid', 'test']:
                     for q in chain_types:
 
                         m = d
