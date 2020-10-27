@@ -6,7 +6,8 @@ ranks = [100, 200, 500, 1000]
 tnorms = ['min', 'product']
 
 # candidates = [3, 4, 5, 6]
-candidates = [7, 8, 9, 10, 11, 12]
+# candidates = [7, 8, 9, 10, 11, 12]
+candidates = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 
 cmd_lines = []
 
@@ -29,7 +30,7 @@ for d in dsets:
 
                     _id = f"topk_d={_d}_r={r}_t={t}_c={c}"
 
-                    cmd_lines += [f"{cmd} > logs/topk/topk_{_id}.log 2>&1"]
+                    cmd_lines += [f"{cmd} > logs/topk2/topk_{_id}.log 2>&1"]
 
 nb_jobs = len(cmd_lines)
 
