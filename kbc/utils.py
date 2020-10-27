@@ -1,9 +1,9 @@
 import os
-import sys
+import os.path as osp
 import json
 import time
 import enum
-import logging
+from collections import defaultdict
 import subprocess
 
 
@@ -727,29 +727,55 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
     return env
 
 
-def plot_regularization_results():
-    reg_values = []
-    hits = []
-    query_type = '4_3u'
-    for f in os.listdir():
-        if f.startswith('FB15k-237-model-rank-500-epoch-100-1602506111'):
-            values = f.split('-')
-            if values[8] == query_type:
-                reg = float(values[9])
-                rank = values[4]
-                reg_values.append(reg)
-                results = json.load(open(f))
-                hits.append(results['HITS@3m_new'])
+def plot_regularization_results(results_path, dataset):
+    query2hits = defaultdict(lambda: ([], []))
 
-    reg_values, hits = zip(*sorted(zip(reg_values, hits)))
-    plt.plot(reg_values, hits, label=f'Rank={rank}')
-    plt.xscale('log')
-    plt.xlabel('Regularization coefficient')
-    plt.ylabel('H@3')
-    plt.title(f'Results on {query_type} queries')
-    plt.legend()
-    plt.show()
+    if dataset == 'FB15k-237':
+        type_index = 8
+        reg_index = 9
+        val_index = 4
+    else:
+        type_index = 7
+        reg_index = 8
+        val_index = 3
+
+    files_found = 0
+
+    for f in os.listdir(results_path):
+        if f.startswith(dataset + '-model'):
+            files_found += 1
+
+            values = f.split('-')
+            query_type = values[type_index]
+            reg = float(values[reg_index])
+            rank = values[val_index]
+            query2hits[query_type][0].append(reg)
+            results = json.load(open(osp.join(results_path, f)))
+            query2hits[query_type][1].append(results['HITS@3m_new'])
+
+    if files_found > 0:
+        print(f'Showing results for {dataset}')
+        print(f'{"Query type":<12}{"Best coefficient":<20}')
+        query2hits = {query_type: zip(*sorted(zip(reg_values, hits))) for query_type, (reg_values, hits) in query2hits.items()}
+
+        for query_type, (reg_values, hits) in query2hits.items():
+            max_index = np.argmax(np.array(hits))
+            best_coeff = reg_values[max_index]
+
+            print(f'{query_type:<12}{best_coeff:<20.1e}')
+
+            plt.plot(reg_values, hits, '.-', label=f'Rank={rank}')
+            plt.xscale('log')
+            plt.xlabel('Regularization coefficient')
+            plt.ylabel('H@3')
+            plt.title(f'Results on {query_type} queries - {dataset}')
+            plt.legend()
+            plt.show()
+    else:
+        print('Log files not found, terminating')
 
 
 if __name__ == '__main__':
-    plot_regularization_results()
+    plot_regularization_results('results', 'FB15k')
+    plot_regularization_results('results', 'FB15k-237')
+    plot_regularization_results('results', 'NELL')
