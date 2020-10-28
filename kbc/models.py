@@ -757,9 +757,7 @@ class KBCModel(nn.Module, ABC):
 	def min_max_rescale(self,x):
 		return (x-torch.min(x))/(torch.max(x)- torch.min(x))
 
-	def query_answering_BF(self, env: DynKBCSingleton ,  regularizer: Regularizer, candidates: int = 5,\
-							similarity_metric : str = 'l2', t_norm: str = 'min' , batch_size = 4):
-
+	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', batch_size=4):
 
 		res = None
 
@@ -775,8 +773,6 @@ class KBCModel(nn.Module, ABC):
 
 
 		scores = None
-
-
 
 		# data_loader = DataLoader(dataset=chains, batch_size=16, shuffle=False)
 

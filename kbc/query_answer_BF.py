@@ -20,26 +20,26 @@ from kbc.metrics import evaluation
 
 
 
-def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min', candidates = 3):
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm = 'min', candidates = 3):
 	experiments = ['1_2','2_2','2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
 	# experiments = ['3_3', '4_3']
 	# experiments = ['2_3']
 
-	print(kbc_path, dataset_name, similarity_metric, t_norm, candidates)
+	print(kbc_path, dataset_name, t_norm, candidates)
 
 	path_entries = kbc_path.split('-')
 	rank = path_entries[path_entries.index('rank') + 1] if 'rank' in path_entries else 'None'
 
 	for exp in experiments:
-		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric, t_norm, exp, candidates)
+		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm, exp, candidates)
 
 		with open(f'topk_d={dataset_name}_t={t_norm}_e={exp}_rank={rank}_k={candidates}.json', 'w') as fp:
 			json.dump(metrics, fp)
 
 
-def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric = 'l2', t_norm = 'min', query_type = '1_2', candidates = 3):
+def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3):
 	metrics = {}
 
 	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
@@ -53,7 +53,7 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, similarity_metric 
 
 	kbc = env.kbc
 
-	scores =  kbc.model.query_answering_BF(env , kbc.regularizer, candidates ,similarity_metric = similarity_metric, t_norm = t_norm , batch_size = 1)
+	scores =  kbc.model.query_answering_BF(env, candidates, t_norm=t_norm , batch_size=1)
 	print(scores.shape)
 
 	queries = env.keys_hard
@@ -72,12 +72,11 @@ if __name__ == "__main__":
 	big_datasets = ['Bio','FB15K', 'WN', 'WN18RR', 'FB237', 'YAGO3-10']
 	datasets = big_datasets
 	dataset_modes = ['valid', 'test', 'train']
-	similarity_metrics = ['l2', 'Eculidian', 'cosine']
 
 	chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
 	QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
 
-	t_norms = ['min','product']
+	t_norms = ['min', 'product']
 
 	parser = argparse.ArgumentParser(
 	description="Query Answering BF namespace"
@@ -96,11 +95,6 @@ if __name__ == "__main__":
 	parser.add_argument(
 	'--dataset_mode', choices=dataset_modes, default='train',
 	help="Dataset validation mode in {}".format(dataset_modes)
-	)
-
-	parser.add_argument(
-	'--similarity_metric', choices=similarity_metrics, default='l2',
-	help="Dataset validation mode in {}".format(similarity_metrics)
 	)
 
 	parser.add_argument(
@@ -128,4 +122,4 @@ if __name__ == "__main__":
 
 	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
 	candidates = int(args.candidates)
-	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, similarity_metric = 'l2', t_norm = args.t_norm, candidates = candidates)
+	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, t_norm=args.t_norm, candidates=candidates)
