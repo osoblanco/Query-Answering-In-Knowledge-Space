@@ -743,16 +743,16 @@ class KBCModel(nn.Module, ABC):
 		return z_scores, z_emb
 
 	def t_norm(self, tens_1: Tensor, tens_2: Tensor, t_norm: str = 'min') -> Tensor:
-			if 'min' in t_norm:
-				return torch.min(tens_1, tens_2)
-			elif 'prod' in t_norm:
-				return tens_1 * tens_2
+		if 'min' in t_norm:
+			return torch.min(tens_1, tens_2)
+		elif 'prod' in t_norm:
+			return tens_1 * tens_2
 
 	def t_conorm(self, tens_1: Tensor, tens_2: Tensor, t_conorm: str = 'max') -> Tensor:
-			if 'max' in t_conorm:
-				return torch.max(tens_1, tens_2)
-			elif 'prod' in t_conorm:
-				return (tens_1+tens_2) - (tens_1 * tens_2)
+		if 'min' in t_conorm:
+			return torch.max(tens_1, tens_2)
+		elif 'prod' in t_conorm:
+			return (tens_1+tens_2) - (tens_1 * tens_2)
 
 	def min_max_rescale(self,x):
 		return (x-torch.min(x))/(torch.max(x)- torch.min(x))
@@ -776,7 +776,7 @@ class KBCModel(nn.Module, ABC):
 
 		scores = None
 
-		# print(chain_instructions)
+
 
 		# data_loader = DataLoader(dataset=chains, batch_size=16, shuffle=False)
 
@@ -792,6 +792,11 @@ class KBCModel(nn.Module, ABC):
 			batch_size = batch[1] - batch[0]
 			#torch.cuda.empty_cache()
 
+			if 'disj' in env.graph_type:
+				dnf_flag = True
+
+
+
 			for inst_ind, inst in enumerate(chain_instructions):
 				with torch.no_grad():
 					if 'hop' in inst:
@@ -799,6 +804,10 @@ class KBCModel(nn.Module, ABC):
 						ind_1 = int(inst.split("_")[-2])
 						ind_2 = int(inst.split("_")[-1])
 
+						if objective == self.t_conorm and dnf_flag:
+							# print("BER")
+
+							objective = self.t_norm
 
 						last_hop = False
 						for ind in [ind_1, ind_2]:
@@ -860,6 +869,10 @@ class KBCModel(nn.Module, ABC):
 						ind_2 = int(inst.split("_")[-1])
 
 						indices = [ind_1, ind_2]
+
+						if objective == self.t_norm and dnf_flag:
+							# print("XER")
+							objective = self.t_conorm
 
 						if len(inst.split("_")) > 3:
 							ind_1 = int(inst.split("_")[-3])

@@ -21,7 +21,7 @@ from kbc.metrics import evaluation
 
 
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, similarity_metric = 'l2', t_norm = 'min', candidates = 3):
-	experiments = ['2_2','2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+	experiments = ['1_2','2_2','2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
 	# experiments = ['3_3', '4_3']
@@ -77,7 +77,7 @@ if __name__ == "__main__":
 	chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
 	QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
 
-	t_norms = ['min','max','product']
+	t_norms = ['min','product']
 
 	parser = argparse.ArgumentParser(
 	description="Query Answering BF namespace"
