@@ -723,8 +723,10 @@ class KBCModel(nn.Module, ABC):
 
 		# [B, N]
 		# scores_sp = (s, p, ?)
-		scores_sp, scores_po = self.candidates_score(rel, arg1, arg2)
-		scores = scores_sp if arg2 is None else scores_po
+		# scores_sp, scores_po = self.candidates_score(rel, arg1, arg2)
+		# scores = scores_sp if arg2 is None else scores_po
+
+		scores = self.forward_emb(arg1, rel)
 
 		if not last_step:
 			# [B, K], [B, K]
@@ -787,7 +789,7 @@ class KBCModel(nn.Module, ABC):
 
 			batch_size = batch[1] - batch[0]
 			#torch.cuda.empty_cache()
-
+			dnf_flag = False
 			if 'disj' in env.graph_type:
 				dnf_flag = True
 
@@ -800,24 +802,26 @@ class KBCModel(nn.Module, ABC):
 						ind_1 = int(inst.split("_")[-2])
 						ind_2 = int(inst.split("_")[-1])
 
-						if objective == self.t_conorm and dnf_flag:
-							# print("BER")
+						indices = [ind_1, ind_2]
 
+						if objective == self.t_conorm and dnf_flag:
 							objective = self.t_norm
 
 						last_hop = False
-						for ind in [ind_1, ind_2]:
+						for hop_num, ind in enumerate(indices):
 
+							# print("HOP")
+							# print(candidate_cache.keys())
 							last_step =  (inst_ind == len(chain_instructions)-1) and last_hop
 
 							lhs,rel,rhs = chains[ind]
-
 
 							# [a, p, X], [X, p, Y][Y, p, Z]
 
 							if lhs is not None:
 								lhs = lhs[batch[0]:batch[1]]
 							else:
+								# print("MTA BRAT")
 								batch_scores, lhs_3d = candidate_cache[f"lhs_{ind}"]
 								lhs = lhs_3d.view(-1, embedding_size)
 
@@ -827,6 +831,8 @@ class KBCModel(nn.Module, ABC):
 
 
 							if f"rhs_{ind}" not in candidate_cache:
+
+								# print("STTEEE MTA")
 								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step)
 
 								# [Num_queries * Candidates^K]
@@ -845,7 +851,9 @@ class KBCModel(nn.Module, ABC):
 
 
 								candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
-								candidate_cache[f"lhs_{ind+1}"] = (batch_scores, rhs_3d)
+
+								if not last_hop:
+									candidate_cache[f"lhs_{indices[hop_num+1]}"] = (batch_scores, rhs_3d)
 
 							else:
 								batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
@@ -867,7 +875,6 @@ class KBCModel(nn.Module, ABC):
 						indices = [ind_1, ind_2]
 
 						if objective == self.t_norm and dnf_flag:
-							# print("XER")
 							objective = self.t_conorm
 
 						if len(inst.split("_")) > 3:
@@ -878,8 +885,10 @@ class KBCModel(nn.Module, ABC):
 							indices = [ind_1, ind_2, ind_3]
 
 						for interesction_num, ind in enumerate(indices):
+							# print("intersection")
+							# print(candidate_cache.keys())
 
-							last_step =  (inst_ind == len(chain_instructions)-1) and ind == indices[0]
+							last_step =  (inst_ind == len(chain_instructions)-1) #and ind == indices[0]
 
 							lhs,rel,rhs = chains[ind]
 
@@ -898,7 +907,7 @@ class KBCModel(nn.Module, ABC):
 							rel = rel.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
 							rel = rel.view(-1, embedding_size)
 
-							if interesction_num > 0:
+							if interesction_num > 0 and 'disj' in env.graph_type:
 								batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 								rhs = rhs_3d.view(-1, embedding_size)
 								z_scores = self.score_fixed(rel, lhs, rhs, candidates)
@@ -923,24 +932,34 @@ class KBCModel(nn.Module, ABC):
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
 
-								nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
-								nb_branches = nb_sources // batch_size
+								if not last_step:
+									nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
+									nb_branches = nb_sources // batch_size
 
 								if not last_step:
 									batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, candidates).view(-1), t_norm)
 								else:
-									nb_ent = rhs_3d.shape[1]
+									if ind == indices[0]:
+										nb_ent = rhs_3d.shape[1]
+									else:
+										nb_ent = 1
+
 									batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
+									nb_ent = rhs_3d.shape[1]
+
 
 								candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
 
-								if ind == indices[0]:
+								if ind == indices[0] and 'disj' in env.graph_type:
 									count = len(indices)-1
 									iterator = 1
 									while count > 0:
-										candidate_cache[f"rhs_{ind+iterator}"] = (batch_scores, rhs_3d)
+										candidate_cache[f"rhs_{indices[interesction_num+iterator]}"] = (batch_scores, rhs_3d)
 										iterator += 1
 										count -= 1
+
+								if ind == indices[-1]:
+									candidate_cache[f"lhs_{ind+1}"] = (batch_scores, rhs_3d)
 							else:
 								batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 								candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
