@@ -14,7 +14,9 @@ logger = logging.getLogger(os.path.basename(sys.argv[0]))
 
 
 def path_to_key(path):
-    res = path.split('.')[0].split('/')[-1].replace('topk_', '')
+    res = path.replace('.json', '').split('/')[-1].replace('cont_', '')
+    res = res.replace('-model-', '_').replace('rank-', 'rank=').replace('-epoch-100-', '_')
+    # print(res)
     return res
 
 
@@ -29,7 +31,7 @@ def main(argv):
 
     key_lst = sorted([key for key in key_to_path])
 
-    for d in ['FB15K', 'FB237', 'NELL']:
+    for d in ['FB15k', 'FB15k-237', 'NELL']:
         for rank in [100, 200, 500, 1000]:
             results = []
 
@@ -39,7 +41,7 @@ def main(argv):
                 _keys = []
                 for key in key_lst:
                     # print(d, rank, query, key)
-                    if f'd={d}_dev' in key and f'rank={rank}_' in key and f'e={query}_' in key:
+                    if f'm=valid' in key and f'n={d}' in key and f'rank={rank}_' in key and f't={query}_' in key:
                         _keys += [key]
 
                 best_value = None
@@ -48,12 +50,12 @@ def main(argv):
                 for key in _keys:
                     res = path_to_results(key_to_path[key])
                     if best_value is None or res["HITS@3m_new"] > best_value:
-                        _tmp = key.replace('_dev', '')                        
+                        _tmp = key.replace('m=valid', 'm=test')                        
                         if _tmp in key_to_path and os.path.isfile(key_to_path[_tmp]): 
                             best_dev_key = key
                             best_value = res["HITS@3m_new"]
 
-                best_test_key = best_dev_key.replace('_dev', '')
+                best_test_key = best_dev_key.replace('m=valid', 'm=test')
 
                 res = path_to_results(key_to_path[best_test_key])
                 results += [res["HITS@3m_new"]]
