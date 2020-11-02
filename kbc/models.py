@@ -6,7 +6,7 @@
 #
 
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict, Optional
+from typing import Tuple, List, Dict, Optional, Callable
 import math
 
 import torch
@@ -172,7 +172,8 @@ class KBCModel(nn.Module, ABC):
 		return raw_chain
 
 	@staticmethod
-	def _optimize_variables(scoring_fn, params, optimizer, lr, max_steps):
+	def _optimize_variables(scoring_fn: Callable, params: list, optimizer: str,
+							lr: float, max_steps: int):
 		if optimizer == 'adam':
 			optimizer = optim.Adam(params, lr=lr)
 		elif optimizer == 'adagrad':
@@ -215,9 +216,31 @@ class KBCModel(nn.Module, ABC):
 
 		return scores
 
+	@staticmethod
+	def batch_t_norm(atoms: Tensor, norm_type: str = 'min') -> Tensor:
+		if norm_type == 'min':
+			scores = torch.min(atoms, dim=-1)[0]
+		elif norm_type == 'prod':
+			scores = torch.prod(atoms, dim=-1)
+		else:
+			raise ValueError(f't_norm must be "min" or "prod", got {norm_type}')
+
+		return scores
+
+	@staticmethod
+	def batch_t_conorm(atoms: Tensor, norm_type: str = 'max') -> Tensor:
+		if norm_type == 'min':
+			scores = torch.max(atoms, dim=-1)[0]
+		elif norm_type == 'prod':
+			scores = torch.sum(atoms, dim=-1) - torch.prod(atoms, dim=-1)
+		else:
+			raise ValueError(f't_conorm must be "min" or "prod", got {norm_type}')
+
+		return scores
+
 	def optimize_chains(self, chains: List, regularizer: Regularizer,
 						max_steps: int = 20, lr: float = 0.1,
-						optimizer: str = 'adam', t_norm: str = 'min'):
+						optimizer: str = 'adam', norm_type: str = 'min'):
 		def scoring_fn(score_all=False):
 			score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
 			score_2, factors_2 = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
@@ -231,7 +254,7 @@ class KBCModel(nn.Module, ABC):
 				atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
 
 			guess_regularizer = regularizer(factors)
-			t_norm = torch.prod(atoms, dim=1)
+			t_norm = self.batch_t_norm(atoms, norm_type)
 
 			all_scores = None
 			if score_all:
@@ -242,8 +265,7 @@ class KBCModel(nn.Module, ABC):
 					score_3 = self.forward_emb(obj_guess_2, rel_3)
 					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
 
-				t_norm = torch.prod(atoms, dim=-1)
-				all_scores = t_norm
+				all_scores = self.batch_t_norm(atoms, norm_type)
 
 			return t_norm, guess_regularizer, all_scores
 
@@ -267,7 +289,7 @@ class KBCModel(nn.Module, ABC):
 
 	def optimize_intersections(self, chains: List, regularizer: Regularizer,
 							   max_steps: int = 20, lr: float = 0.1,
-							   optimizer:str = 'adam', t_norm: str = 'min',
+							   optimizer:str = 'adam', norm_type: str = 'min',
 							   disjunctive=False):
 		def scoring_fn(score_all=False):
 			score_1, factors = self.score_emb(lhs_1, rel_1, obj_guess)
@@ -280,10 +302,10 @@ class KBCModel(nn.Module, ABC):
 				score_3, _ = self.score_emb(lhs_3, rel_3, obj_guess)
 				atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
 
-			t_norm = torch.prod(atoms, dim=1)
-
 			if disjunctive:
-				t_norm = torch.sum(atoms, dim=1) - t_norm
+				t_norm = self.batch_t_conorm(atoms, norm_type)
+			else:
+				t_norm = self.batch_t_norm(atoms, norm_type)
 
 			all_scores = None
 			if score_all:
@@ -298,11 +320,10 @@ class KBCModel(nn.Module, ABC):
 					score_3 = self.forward_emb(lhs_3, rel_3)
 					atoms = torch.cat((atoms, score_3.unsqueeze(-1)), dim=-1)
 
-				t_norm = torch.prod(atoms, dim=-1)
 				if disjunctive:
-					all_scores = torch.sum(atoms, dim=-1) - t_norm
+					all_scores = self.batch_t_conorm(atoms, norm_type)
 				else:
-					all_scores = t_norm
+					all_scores = self.batch_t_norm(atoms, norm_type)
 
 			return t_norm, guess_regularizer, all_scores
 
@@ -323,7 +344,7 @@ class KBCModel(nn.Module, ABC):
 
 	def optimize_3_3(self, chains: List, regularizer: Regularizer,
 					 max_steps: int = 20, lr: float = 0.1,
-					 optimizer:str = 'adam', t_norm: str = 'min'):
+					 optimizer:str = 'adam', norm_type: str = 'min'):
 		def scoring_fn(score_all=False):
 			score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
 			score_2, _ = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
@@ -335,17 +356,15 @@ class KBCModel(nn.Module, ABC):
 
 			guess_regularizer = regularizer(factors)
 
-			t_norm = torch.prod(atoms, dim=1)
+			t_norm = self.batch_t_norm(atoms, norm_type)
 
 			all_scores = None
 			if score_all:
 				score_2 = self.forward_emb(obj_guess_1, rel_2)
 				score_3 = self.forward_emb(lhs_2, rel_3)
-				atoms = torch.sigmoid(
-					torch.stack((score_1.expand_as(score_2), score_2, score_3),
-								dim=-1))
+				atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2, score_3), dim=-1))
 
-				t_norm = torch.prod(atoms, dim=-1)
+				t_norm = self.batch_t_norm(atoms, norm_type)
 
 				all_scores = t_norm
 
@@ -362,7 +381,7 @@ class KBCModel(nn.Module, ABC):
 
 	def optimize_4_3(self, chains: List, regularizer: Regularizer,
 					 max_steps: int = 20, lr: float = 0.1,
-					 optimizer: str = 'adam', t_norm: str = 'min',
+					 optimizer: str = 'adam', norm_type: str = 'min',
 					 disjunctive=False):
 		def scoring_fn(score_all=False):
 			score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
@@ -373,14 +392,14 @@ class KBCModel(nn.Module, ABC):
 			guess_regularizer = regularizer(factors)
 
 			if not disjunctive:
-				atoms = torch.sigmoid(
-					torch.cat((score_1, score_2, score_3), dim=1))
-				t_norm = torch.prod(atoms, dim=1)
+				atoms = torch.sigmoid(torch.cat((score_1, score_2, score_3), dim=1))
+				t_norm = self.batch_t_norm(atoms, norm_type)
 			else:
 				disj_atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
-				t_conorm = torch.sum(disj_atoms, dim=1, keepdim=True) - torch.prod(disj_atoms, dim=1, keepdim=True)
+				t_conorm = self.batch_t_conorm(disj_atoms, norm_type).unsqueeze(1)
+
 				conj_atoms = torch.cat((t_conorm, torch.sigmoid(score_3)), dim=1)
-				t_norm = torch.prod(conj_atoms, dim=1)
+				t_norm = self.batch_t_norm(conj_atoms, norm_type)
 
 			all_scores = None
 			if score_all:
@@ -388,12 +407,9 @@ class KBCModel(nn.Module, ABC):
 				if not disjunctive:
 					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
 				else:
-					atoms = torch.stack(
-						(t_conorm.expand_as(score_3), torch.sigmoid(score_3)),
-						dim=-1)
+					atoms = torch.stack((t_conorm.expand_as(score_3), torch.sigmoid(score_3)), dim=-1)
 
-				t_norm = torch.prod(atoms, dim=-1)
-				all_scores = t_norm
+				all_scores = self.batch_t_norm(atoms, norm_type)
 
 			return t_norm, guess_regularizer, all_scores
 

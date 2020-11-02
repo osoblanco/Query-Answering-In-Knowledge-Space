@@ -44,7 +44,7 @@ def score_queries(args):
                                            max_steps=1000,
                                            lr=args.lr,
                                            optimizer=args.optimizer,
-                                           t_norm=args.t_norm)
+                                           norm_type=args.t_norm)
 
     elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value,
                              QuerDAG.TYPE2_3.value):
@@ -52,7 +52,7 @@ def score_queries(args):
                                                   max_steps=1000,
                                                   lr=args.lr,
                                                   optimizer=args.optimizer,
-                                                  t_norm=args.t_norm,
+                                                  norm_type=args.t_norm,
                                                   disjunctive=disjunctive)
 
     elif args.chain_type == QuerDAG.TYPE3_3.value:
@@ -60,7 +60,7 @@ def score_queries(args):
                                         max_steps=1000,
                                         lr=args.lr,
                                         optimizer=args.optimizer,
-                                        t_norm=args.t_norm)
+                                        norm_type=args.t_norm)
 
     elif args.chain_type in (QuerDAG.TYPE4_3.value,
                              QuerDAG.TYPE4_3_disj.value):
@@ -68,7 +68,7 @@ def score_queries(args):
                                         max_steps=1000,
                                         lr=args.lr,
                                         optimizer=args.optimizer,
-                                        t_norm=args.t_norm,
+                                        norm_type=args.t_norm,
                                         disjunctive=disjunctive)
     else:
         raise ValueError(f'Uknown query type {args.chain_type}')
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument('--chain_type', choices=chain_types, default=QuerDAG.TYPE1_1.value,
                         help="Chain type experimenting for ".format(chain_types))
 
-    parser.add_argument('--t_norm', choices=t_norms, default='min', help="T-norms available are ".format(t_norms))
+    parser.add_argument('--t_norm', choices=t_norms, default='prod', help="T-norms available are ".format(t_norms))
     parser.add_argument('--reg', type=float, help='Regularization coefficient', default=None)
     parser.add_argument('--lr', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--optimizer', type=str, default='adam',
