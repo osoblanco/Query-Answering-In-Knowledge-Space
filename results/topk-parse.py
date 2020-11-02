@@ -39,7 +39,7 @@ def main(argv):
                 _keys = []
                 for key in key_lst:
                     # print(d, rank, query, key)
-                    if f'd={d}_dev' in key and f'rank={rank}_' in key and f'e={query}_' in key:
+                    if f'd={d}_dev' in key and f'rank={rank}_' in key and f'e={query}_rank' in key:
                         _keys += [key]
 
                 best_value = None
@@ -57,8 +57,8 @@ def main(argv):
                 best_test_path = key_to_path[best_test_key]
 
                 #print(best_test_path)
-                #if '2_2_rank' in best_test_path:
-                #    print(best_test_path)
+                # if '2_2' in best_test_path:
+                # print(best_test_path)
 
                 res = path_to_results(best_test_path)
                 results += [res["HITS@3m_new"]]
