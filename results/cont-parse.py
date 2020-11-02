@@ -41,6 +41,7 @@ def main(argv):
                 _keys = []
                 for key in key_lst:
                     # print(d, rank, query, key)
+                    # print(key)
                     if f'm=valid' in key and f'n={d}' in key and f'rank={rank}_' in key and f't={query}_' in key:
                         _keys += [key]
 
@@ -57,6 +58,11 @@ def main(argv):
 
                 best_test_key = best_dev_key.replace('m=valid', 'm=test')
                 best_test_path = key_to_path[best_test_key]
+
+                # print(key, best_test_path)
+
+                #if '2_2' in best_test_path and '2_2_disj' not in best_test_path and 'rank-1000-' in best_test_path:
+                #    print(best_test_path)
 
                 res = path_to_results(best_test_path)
                 results += [res["HITS@3m_new"]]

@@ -45,7 +45,6 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', quer
 	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
-
 	if '1' in env.chain_instructions[-1][-1]:
 		part1, part2 = env.parts
 	elif '2' in env.chain_instructions[-1][-1]:
@@ -53,7 +52,7 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', quer
 
 	kbc = env.kbc
 
-	scores =  kbc.model.query_answering_BF(env, candidates, t_norm=t_norm , batch_size=1)
+	scores = kbc.model.query_answering_BF(env, candidates, t_norm=t_norm , batch_size=1)
 	print(scores.shape)
 
 	queries = env.keys_hard

@@ -56,8 +56,9 @@ def main(argv):
                 best_test_key = best_dev_key.replace('_dev', '')
                 best_test_path = key_to_path[best_test_key]
 
-                if '4_3_disj' in best_test_path and 'rank=1000' in best_test_path:
-                    print(best_test_path)
+                #print(best_test_path)
+                #if '2_2_rank' in best_test_path:
+                #    print(best_test_path)
 
                 res = path_to_results(best_test_path)
                 results += [res["HITS@3m_new"]]

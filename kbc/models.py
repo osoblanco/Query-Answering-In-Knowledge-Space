@@ -768,11 +768,9 @@ class KBCModel(nn.Module, ABC):
 		else:
 			objective = self.t_norm
 
-
 		chains, chain_instructions = env.chains, env.chain_instructions
 
 		nb_queries, embedding_size = chains[0][0].shape[0], chains[0][0].shape[1]
-
 
 		scores = None
 
@@ -792,8 +790,6 @@ class KBCModel(nn.Module, ABC):
 			dnf_flag = False
 			if 'disj' in env.graph_type:
 				dnf_flag = True
-
-
 
 			for inst_ind, inst in enumerate(chain_instructions):
 				with torch.no_grad():
@@ -829,7 +825,6 @@ class KBCModel(nn.Module, ABC):
 							rel = rel.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
 							rel = rel.view(-1, embedding_size)
 
-
 							if f"rhs_{ind}" not in candidate_cache:
 
 								# print("STTEEE MTA")
@@ -849,7 +844,6 @@ class KBCModel(nn.Module, ABC):
 									nb_ent = rhs_3d.shape[1]
 									batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
 
-
 								candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
 
 								if not last_hop:
@@ -862,7 +856,6 @@ class KBCModel(nn.Module, ABC):
 								del lhs, rel
 								# #torch.cuda.empty_cache()
 								continue
-
 
 							last_hop =  True
 							del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
@@ -884,7 +877,7 @@ class KBCModel(nn.Module, ABC):
 
 							indices = [ind_1, ind_2, ind_3]
 
-						for interesction_num, ind in enumerate(indices):
+						for intersection_num, ind in enumerate(indices):
 							# print("intersection")
 							# print(candidate_cache.keys())
 
@@ -907,7 +900,7 @@ class KBCModel(nn.Module, ABC):
 							rel = rel.view(-1, 1, embedding_size).repeat(1, nb_branches, 1)
 							rel = rel.view(-1, embedding_size)
 
-							if interesction_num > 0 and 'disj' in env.graph_type:
+							if intersection_num > 0 and 'disj' in env.graph_type:
 								batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 								rhs = rhs_3d.view(-1, embedding_size)
 								z_scores = self.score_fixed(rel, lhs, rhs, candidates)
@@ -916,11 +909,9 @@ class KBCModel(nn.Module, ABC):
 								if 'disj' in env.graph_type:
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
-
 								batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores, t_norm)
 
 								continue
-
 
 							if f"rhs_{ind}" not in candidate_cache or last_step:
 								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step)
@@ -930,7 +921,6 @@ class KBCModel(nn.Module, ABC):
 								# print(z_scores_1d)
 								if 'disj' in env.graph_type:
 									z_scores_1d = torch.sigmoid(z_scores_1d)
-
 
 								if not last_step:
 									nb_sources = rhs_3d.shape[0]*rhs_3d.shape[1]
@@ -947,14 +937,13 @@ class KBCModel(nn.Module, ABC):
 									batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores.view(-1, 1).repeat(1, nb_ent).view(-1), t_norm)
 									nb_ent = rhs_3d.shape[1]
 
-
 								candidate_cache[f"rhs_{ind}"] = (batch_scores, rhs_3d)
 
 								if ind == indices[0] and 'disj' in env.graph_type:
 									count = len(indices)-1
 									iterator = 1
 									while count > 0:
-										candidate_cache[f"rhs_{indices[interesction_num+iterator]}"] = (batch_scores, rhs_3d)
+										candidate_cache[f"rhs_{indices[intersection_num+iterator]}"] = (batch_scores, rhs_3d)
 										iterator += 1
 										count -= 1
 
@@ -964,7 +953,7 @@ class KBCModel(nn.Module, ABC):
 								batch_scores, rhs_3d = candidate_cache[f"rhs_{ind}"]
 								candidate_cache[f"rhs_{ind+1}"] = (batch_scores, rhs_3d)
 
-								last_hop =  True
+								last_hop = True
 								del lhs, rel
 								continue
 
