@@ -56,8 +56,9 @@ def main(argv):
                             best_value = res["HITS@3m_new"]
 
                 best_test_key = best_dev_key.replace('m=valid', 'm=test')
+                best_test_path = key_to_path[best_test_key]
 
-                res = path_to_results(key_to_path[best_test_key])
+                res = path_to_results(best_test_path)
                 results += [res["HITS@3m_new"]]
 
             print(f'd={d} rank={rank} ' + " ".join([f'{r:.3f}' for r in results]))
