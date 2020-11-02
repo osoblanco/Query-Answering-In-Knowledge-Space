@@ -36,30 +36,32 @@ def score_queries(args):
     if args.reg is not None:
         env.kbc.regularizer.weight = args.reg
 
-    disjunctive = args.chain_type in (QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE4_3_disj.value)
+    disjunctive = args.chain_type in (QuerDAG.TYPE2_2_disj.value,
+                                      QuerDAG.TYPE4_3_disj.value)
 
     if args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
                                            max_steps=1000,
                                            t_norm=args.t_norm)
 
-    elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE2_3.value):
+    elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value,
+                             QuerDAG.TYPE2_3.value):
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
                                                   max_steps=1000,
                                                   t_norm=args.t_norm,
                                                   disjunctive=disjunctive)
 
     elif args.chain_type == QuerDAG.TYPE3_3.value:
-        scores = kbc.model.type3_3chain_optimize(chains, kbc.regularizer,
-                                                 max_steps=1000,
-                                                 t_norm=args.t_norm)
+        scores = kbc.model.optimize_3_3(chains, kbc.regularizer,
+                                        max_steps=1000,
+                                        t_norm=args.t_norm)
 
-    elif args.chain_type in (
-    QuerDAG.TYPE4_3.value, QuerDAG.TYPE4_3_disj.value):
-        scores = kbc.model.type4_3chain_optimize(chains, kbc.regularizer,
-                                                 max_steps=1000,
-                                                 t_norm=args.t_norm,
-                                                 disjunctive=disjunctive)
+    elif args.chain_type in (QuerDAG.TYPE4_3.value,
+                             QuerDAG.TYPE4_3_disj.value):
+        scores = kbc.model.optimize_4_3(chains, kbc.regularizer,
+                                        max_steps=1000,
+                                        t_norm=args.t_norm,
+                                        disjunctive=disjunctive)
     else:
         raise ValueError(f'Uknown query type {args.chain_type}')
 
@@ -75,9 +77,6 @@ def main(args):
     model_name = osp.splitext(osp.basename(args.model_path))[0]
     reg_str = f'{args.reg}' if args.reg is not None else 'None'
     
-    # path_entries = args.model_path.split('-')
-    # rank_str = path_entries[path_entries.index('rank') + 1] if 'rank' in path_entries else 'None'
-
     with open(f'cont_n={model_name}_t={args.chain_type}_r={reg_str}_m={args.dataset_mode}.json', 'w') as f:
         json.dump(metrics, f)
 
