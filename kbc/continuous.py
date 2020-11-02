@@ -4,8 +4,6 @@ import os.path as osp
 from pathlib import Path
 import json
 
-import torch
-
 from kbc.utils import QuerDAG
 from kbc.utils import preload_env
 from kbc.metrics import evaluation
@@ -38,8 +36,7 @@ def score_queries(args):
     if args.reg is not None:
         env.kbc.regularizer.weight = args.reg
 
-    disjunctive = args.chain_type in (QuerDAG.TYPE2_2_disj.value,
-                                      QuerDAG.TYPE4_3_disj.value)
+    disjunctive = args.chain_type in (QuerDAG.TYPE2_2_disj.value, QuerDAG.TYPE4_3_disj.value)
 
     if args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
