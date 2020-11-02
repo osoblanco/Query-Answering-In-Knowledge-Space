@@ -39,7 +39,7 @@ def main(argv):
                 _keys = []
                 for key in key_lst:
                     # print(d, rank, query, key)
-                    if f'd={d}_dev' in key and f'rank={rank}_' in key and f'e={query}_' in key:
+                    if f'd={d}_dev' in key and f'rank={rank}_' in key and f'e={query}_rank' in key:
                         _keys += [key]
 
                 best_value = None
@@ -54,11 +54,16 @@ def main(argv):
                             best_value = res["HITS@3m_new"]
 
                 best_test_key = best_dev_key.replace('_dev', '')
+                best_test_path = key_to_path[best_test_key]
 
-                res = path_to_results(key_to_path[best_test_key])
+                #print(best_test_path)
+                # if '2_2' in best_test_path:
+                # print(best_test_path)
+
+                res = path_to_results(best_test_path)
                 results += [res["HITS@3m_new"]]
 
-            print(f'd={d} rank={rank} ' + " ".join([f'{r:.3f}' for r in results]))
+            print(f'd={d} rank={rank} & ' + " & ".join([f'{r:.3f}' for r in results]))
 
 
 if __name__ == '__main__':

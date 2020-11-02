@@ -16,7 +16,7 @@ logger = logging.getLogger(os.path.basename(sys.argv[0]))
 def path_to_key(path):
     res = path.replace('.json', '').split('/')[-1].replace('cont_', '')
     res = res.replace('-model-', '_').replace('rank-', 'rank=').replace('-epoch-100-', '_')
-    print(res)
+    # print(res)
     return res
 
 
@@ -41,7 +41,8 @@ def main(argv):
                 _keys = []
                 for key in key_lst:
                     # print(d, rank, query, key)
-                    if f'm=valid' in key and f'n={d}' in key and f'rank={rank}_' in key and f't={query}_' in key:
+                    # print(key)
+                    if f'm=valid' in key and f'n={d}' in key and f'rank={rank}_' in key and f't={query}_r=' in key:
                         _keys += [key]
 
                 best_value = None
@@ -56,11 +57,14 @@ def main(argv):
                             best_value = res["HITS@3m_new"]
 
                 best_test_key = best_dev_key.replace('m=valid', 'm=test')
+                best_test_path = key_to_path[best_test_key]
 
-                res = path_to_results(key_to_path[best_test_key])
+                # print(best_test_key)
+
+                res = path_to_results(best_test_path)
                 results += [res["HITS@3m_new"]]
 
-            print(f'd={d} rank={rank} ' + " ".join([f'{r:.3f}' for r in results]))
+            print(f'd={d} rank={rank} & ' + " & ".join([f'{r:.3f}' for r in results]))
 
 
 if __name__ == '__main__':
