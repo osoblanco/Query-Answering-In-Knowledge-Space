@@ -171,8 +171,81 @@ class KBCModel(nn.Module, ABC):
 
 		return raw_chain
 
-	def optimize_chains(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-						max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
+	@staticmethod
+	def _optimize_variables(scoring_fn, params, optimizer, lr, max_steps):
+		if optimizer == 'adam':
+			optimizer = optim.Adam(params, lr=lr)
+		elif optimizer == 'adagrad':
+			optimizer = optim.Adagrad(params, lr=lr)
+		elif optimizer == 'sgd':
+			optimizer = optim.SGD(params, lr=lr)
+		else:
+			raise ValueError(f'Unknown optimizer {optimizer}')
+
+		prev_loss_value = 1000
+		loss_value = 999
+		losses = []
+
+		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
+			i = 0
+			while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
+				prev_loss_value = loss_value
+
+				norm, regularizer, _ = scoring_fn()
+				loss = -norm.mean() + regularizer
+
+				optimizer.zero_grad()
+				loss.backward()
+				optimizer.step()
+
+				i += 1
+				bar.update(1)
+				bar.set_postfix(loss=f'{loss.item():.6f}')
+
+				loss_value = loss.item()
+				losses.append(loss_value)
+
+			if i != max_steps:
+				bar.update(max_steps - i + 1)
+				bar.close()
+				print("Search converged early after {} iterations".format(i))
+
+		with torch.no_grad():
+			*_, scores = scoring_fn(score_all=True)
+
+		return scores
+
+	def optimize_chains(self, chains: List, regularizer: Regularizer,
+						max_steps: int = 20, lr: float = 0.1,
+						optimizer: str = 'adam', t_norm: str = 'min'):
+		def scoring_fn(score_all=False):
+			score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
+			score_2, factors_2 = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
+			factors = [factors_1[2], factors_2[2]]
+
+			atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
+
+			if len(chains) == 3:
+				score_3, factors_3 = self.score_emb(obj_guess_2, rel_3, obj_guess_3)
+				factors.append(factors_3[2])
+				atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
+
+			guess_regularizer = regularizer(factors)
+			t_norm = torch.prod(atoms, dim=1)
+
+			all_scores = None
+			if score_all:
+				if len(chains) == 2:
+					score_2 = self.forward_emb(obj_guess_1, rel_2)
+					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2), dim=-1))
+				else:
+					score_3 = self.forward_emb(obj_guess_2, rel_3)
+					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
+
+				t_norm = torch.prod(atoms, dim=-1)
+				all_scores = t_norm
+
+			return t_norm, guess_regularizer, all_scores
 
 		if len(chains) == 2:
 			lhs_1, rel_1, rel_2 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE1_2.value)
@@ -187,128 +260,33 @@ class KBCModel(nn.Module, ABC):
 		if len(chains) == 3:
 			obj_guess_3 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
 			params.append(obj_guess_3)
-		optimizer = optim.Adam(params, lr=0.1)
 
-		prev_loss_value = 1000
-		loss_value = 999
-		losses = []
-
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-			i = 0
-			while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
-				prev_loss_value = loss_value
-
-				score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
-				score_2, factors_2 = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
-				factors = [factors_1[2], factors_2[2]]
-
-				atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
-
-				if len(chains) == 3:
-					score_3, factors_3 = self.score_emb(obj_guess_2, rel_3, obj_guess_3)
-					factors.append(factors_3[2])
-					atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
-
-				guess_regularizer = regularizer(factors)
-
-				t_norm = torch.prod(atoms, dim=1)
-				loss = -t_norm.mean() + guess_regularizer
-
-				optimizer.zero_grad()
-				loss.backward()
-				optimizer.step()
-
-				i += 1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-
-				loss_value = loss.item()
-				losses.append(loss_value)
-
-			if i != max_steps:
-				bar.update(max_steps - i + 1)
-				bar.close()
-				print("Search converged early after {} iterations".format(i))
-
-			if len(chains) == 2:
-				guess = obj_guess_2
-			else:
-				guess = obj_guess_3
-
-			with torch.no_grad():
-				if len(chains) == 2:
-					score_2 = self.forward_emb(obj_guess_1, rel_2)
-					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2), dim=-1))
-				else:
-					score_3 = self.forward_emb(obj_guess_2, rel_3)
-					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3),dim=-1))
-
-				t_norm = torch.prod(atoms, dim=-1)
-
-				scores = t_norm
+		scores = self._optimize_variables(scoring_fn, params, optimizer, lr, max_steps)
 
 		return scores
 
-	def optimize_intersections(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-							   max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
+	def optimize_intersections(self, chains: List, regularizer: Regularizer,
+							   max_steps: int = 20, lr: float = 0.1,
+							   optimizer:str = 'adam', t_norm: str = 'min',
 							   disjunctive=False):
+		def scoring_fn(score_all=False):
+			score_1, factors = self.score_emb(lhs_1, rel_1, obj_guess)
+			guess_regularizer = regularizer([factors[2]])
+			score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess)
 
-		if len(chains) == 2:
-			raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_2.value)
-			lhs_1, rel_1, lhs_2, rel_2 = raw_chain
-		elif len(chains) == 3:
-			raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_3.value)
-			lhs_1, rel_1, lhs_2, rel_2, lhs_3, rel_3 = raw_chain
-		else:
-			raise ValueError(f'Invalid number of intersections: {len(chains)}')
+			atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
 
-		obj_guess = torch.normal(0, self.init_size, lhs_2.shape, device=lhs_2.device, requires_grad=True)
-		optimizer = optim.Adam([obj_guess], lr=0.1)
+			if len(chains) == 3:
+				score_3, _ = self.score_emb(lhs_3, rel_3, obj_guess)
+				atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
 
-		prev_loss_value = 1000
-		loss_value = 999
-		losses = []
+			t_norm = torch.prod(atoms, dim=1)
 
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-			i = 0
-			while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
-				prev_loss_value = loss_value
+			if disjunctive:
+				t_norm = torch.sum(atoms, dim=1) - t_norm
 
-				score_1, factors = self.score_emb(lhs_1, rel_1, obj_guess)
-				guess_regularizer = regularizer([factors[2]])
-				score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess)
-
-				atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
-
-				if len(chains) == 3:
-					score_3, _ = self.score_emb(lhs_3, rel_3, obj_guess)
-					atoms = torch.cat((atoms, torch.sigmoid(score_3)), dim=1)
-
-				t_norm = torch.prod(atoms, dim=1)
-
-				if disjunctive:
-					t_norm = torch.sum(atoms, dim=1) - t_norm
-
-				loss = -t_norm.mean() + guess_regularizer
-
-				optimizer.zero_grad()
-				loss.backward()
-				optimizer.step()
-
-				i += 1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-
-				loss_value = loss.item()
-				losses.append(loss_value)
-
-			if i != max_steps:
-
-				bar.update(max_steps - i + 1)
-				bar.close()
-				print("Search converged early after {} iterations".format(i))
-
-			with torch.no_grad():
+			all_scores = None
+			if score_all:
 				score_1 = self.forward_emb(lhs_1, rel_1)
 				score_2 = self.forward_emb(lhs_2, rel_2)
 				atoms = torch.stack((score_1, score_2), dim=-1)
@@ -322,132 +300,110 @@ class KBCModel(nn.Module, ABC):
 
 				t_norm = torch.prod(atoms, dim=-1)
 				if disjunctive:
-					scores = torch.sum(atoms, dim=-1) - t_norm
+					all_scores = torch.sum(atoms, dim=-1) - t_norm
 				else:
-					scores = t_norm
+					all_scores = t_norm
 
+			return t_norm, guess_regularizer, all_scores
+
+		if len(chains) == 2:
+			raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_2.value)
+			lhs_1, rel_1, lhs_2, rel_2 = raw_chain
+		elif len(chains) == 3:
+			raw_chain = self.__get_chains__(chains, graph_type=QuerDAG.TYPE2_3.value)
+			lhs_1, rel_1, lhs_2, rel_2, lhs_3, rel_3 = raw_chain
+		else:
+			raise ValueError(f'Invalid number of intersections: {len(chains)}')
+
+		obj_guess = torch.normal(0, self.init_size, lhs_2.shape, device=lhs_2.device, requires_grad=True)
+		params = [obj_guess]
+
+		scores = self._optimize_variables(scoring_fn, params, optimizer, lr, max_steps)
 		return scores
 
-	def optimize_3_3(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-					 max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
+	def optimize_3_3(self, chains: List, regularizer: Regularizer,
+					 max_steps: int = 20, lr: float = 0.1,
+					 optimizer:str = 'adam', t_norm: str = 'min'):
+		def scoring_fn(score_all=False):
+			score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
+			score_2, _ = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
+			score_3, factors_2 = self.score_emb(lhs_2, rel_3, obj_guess_2)
+			factors = [factors_1[2], factors_2[2]]
+
+			atoms = torch.sigmoid(
+				torch.cat((score_1, score_2, score_3), dim=1))
+
+			guess_regularizer = regularizer(factors)
+
+			t_norm = torch.prod(atoms, dim=1)
+
+			all_scores = None
+			if score_all:
+				score_2 = self.forward_emb(obj_guess_1, rel_2)
+				score_3 = self.forward_emb(lhs_2, rel_3)
+				atoms = torch.sigmoid(
+					torch.stack((score_1.expand_as(score_2), score_2, score_3),
+								dim=-1))
+
+				t_norm = torch.prod(atoms, dim=-1)
+
+				all_scores = t_norm
+
+			return t_norm, guess_regularizer, all_scores
 
 		lhs_1, rel_1, rel_2, lhs_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE3_3.value)
 
 		obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
 		obj_guess_2 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
-		optimizer = optim.Adam([obj_guess_1, obj_guess_2], lr=0.1)
+		params = [obj_guess_1, obj_guess_2]
 
-		prev_loss_value = 1000
-		loss_value = 999
-		losses = []
-
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-			i = 0
-			while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
-				prev_loss_value = loss_value
-
-				score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
-				score_2, _ = self.score_emb(obj_guess_1, rel_2, obj_guess_2)
-				score_3, factors_2 = self.score_emb(lhs_2, rel_3, obj_guess_2)
-				factors = [factors_1[2], factors_2[2]]
-
-				atoms = torch.sigmoid(torch.cat((score_1, score_2, score_3), dim=1))
-
-				guess_regularizer = regularizer(factors)
-
-				t_norm = torch.prod(atoms, dim=1)
-				loss = -t_norm.mean() + guess_regularizer
-
-				optimizer.zero_grad()
-				loss.backward()
-				optimizer.step()
-
-				i += 1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-
-				loss_value = loss.item()
-				losses.append(loss_value)
-
-			if i != max_steps:
-				bar.update(max_steps - i + 1)
-				bar.close()
-				print(
-					"Search converged early after {} iterations".format(i))
-
-			with torch.no_grad():
-				score_2 = self.forward_emb(obj_guess_1, rel_2)
-				score_3 = self.forward_emb(lhs_2, rel_3)
-				atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_2), score_2, score_3), dim=-1))
-
-				t_norm = torch.prod(atoms, dim=-1)
-
-				scores = t_norm
-
+		scores = self._optimize_variables(scoring_fn, params, optimizer, lr, max_steps)
 		return scores
 
-	def optimize_4_3(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-					 max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
+	def optimize_4_3(self, chains: List, regularizer: Regularizer,
+					 max_steps: int = 20, lr: float = 0.1,
+					 optimizer: str = 'adam', t_norm: str = 'min',
 					 disjunctive=False):
-		lhs_1, rel_1, lhs_2, rel_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE4_3.value)
+		def scoring_fn(score_all=False):
+			score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
+			score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess_1)
+			score_3, factors_2 = self.score_emb(obj_guess_1, rel_3,
+												obj_guess_2)
+			factors = [factors_1[2], factors_2[2]]
+			guess_regularizer = regularizer(factors)
 
-		obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
-		obj_guess_2 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
-		optimizer = optim.Adam([obj_guess_1, obj_guess_2], lr=0.1)
+			if not disjunctive:
+				atoms = torch.sigmoid(
+					torch.cat((score_1, score_2, score_3), dim=1))
+				t_norm = torch.prod(atoms, dim=1)
+			else:
+				disj_atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
+				t_conorm = torch.sum(disj_atoms, dim=1, keepdim=True) - torch.prod(disj_atoms, dim=1, keepdim=True)
+				conj_atoms = torch.cat((t_conorm, torch.sigmoid(score_3)), dim=1)
+				t_norm = torch.prod(conj_atoms, dim=1)
 
-		prev_loss_value = 1000
-		loss_value = 999
-		losses = []
-
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-			i = 0
-			while i < max_steps and math.fabs(prev_loss_value - loss_value) > 1e-9:
-				prev_loss_value = loss_value
-
-				score_1, factors_1 = self.score_emb(lhs_1, rel_1, obj_guess_1)
-				score_2, _ = self.score_emb(lhs_2, rel_2, obj_guess_1)
-				score_3, factors_2 = self.score_emb(obj_guess_1, rel_3, obj_guess_2)
-				factors = [factors_1[2], factors_2[2]]
-				guess_regularizer = regularizer(factors)
-
-				if not disjunctive:
-					atoms = torch.sigmoid(torch.cat((score_1, score_2, score_3), dim=1))
-					t_norm = torch.prod(atoms, dim=1)
-				else:
-					disj_atoms = torch.sigmoid(torch.cat((score_1, score_2), dim=1))
-					t_conorm = torch.sum(disj_atoms, dim=1, keepdim=True) - torch.prod(disj_atoms, dim=1, keepdim=True)
-					conj_atoms = torch.cat((t_conorm, torch.sigmoid(score_3)), dim=1)
-					t_norm = torch.prod(conj_atoms, dim=1)
-
-				loss = -t_norm.mean() + guess_regularizer
-
-				optimizer.zero_grad()
-				loss.backward()
-				optimizer.step()
-
-				i += 1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-
-				loss_value = loss.item()
-				losses.append(loss_value)
-
-			if i != max_steps:
-				bar.update(max_steps - i + 1)
-				bar.close()
-				print(
-					"Search converged early after {} iterations".format(i))
-
-			with torch.no_grad():
+			all_scores = None
+			if score_all:
 				score_3 = self.forward_emb(obj_guess_1, rel_3)
 				if not disjunctive:
 					atoms = torch.sigmoid(torch.stack((score_1.expand_as(score_3), score_2.expand_as(score_3), score_3), dim=-1))
 				else:
-					atoms = torch.stack((t_conorm.expand_as(score_3), torch.sigmoid(score_3)), dim=-1)
+					atoms = torch.stack(
+						(t_conorm.expand_as(score_3), torch.sigmoid(score_3)),
+						dim=-1)
 
 				t_norm = torch.prod(atoms, dim=-1)
-				scores = t_norm
+				all_scores = t_norm
 
+			return t_norm, guess_regularizer, all_scores
+
+		lhs_1, rel_1, lhs_2, rel_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE4_3.value)
+
+		obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+		obj_guess_2 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
+		params = [obj_guess_1, obj_guess_2]
+
+		scores = self._optimize_variables(scoring_fn, params, optimizer, lr, max_steps)
 		return scores
 
 	def get_best_candidates(self,
