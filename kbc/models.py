@@ -473,7 +473,7 @@ class KBCModel(nn.Module, ABC):
 	def min_max_rescale(self, x):
 		return (x-torch.min(x))/(torch.max(x) - torch.min(x))
 
-	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', batch_size=4):
+	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', batch_size = 1, scores_normalize = 0):
 
 		res = None
 
@@ -546,7 +546,7 @@ class KBCModel(nn.Module, ABC):
 
 								# [Num_queries * Candidates^K]
 								z_scores_1d = z_scores.view(-1)
-								if 'disj' in env.graph_type:
+								if 'disj' in env.graph_type or scores_normalize:
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
 								# B * S
@@ -620,7 +620,7 @@ class KBCModel(nn.Module, ABC):
 								z_scores = self.score_fixed(rel, lhs, rhs, candidates)
 
 								z_scores_1d = z_scores.view(-1)
-								if 'disj' in env.graph_type:
+								if 'disj' in env.graph_type or scores_normalize:
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
 								batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores, t_norm)
@@ -633,7 +633,7 @@ class KBCModel(nn.Module, ABC):
 								# [B * Candidates^K] or [B, S-1, N]
 								z_scores_1d = z_scores.view(-1)
 								# print(z_scores_1d)
-								if 'disj' in env.graph_type:
+								if 'disj' in env.graph_type or scores_normalize:
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
 								if not last_step:

@@ -8,7 +8,7 @@ from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm = 'min', candidates = 3):
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm = 'min', candidates = 3, scores_normalize = 0):
 	experiments = ['1_2', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
@@ -21,13 +21,13 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	rank = path_entries[path_entries.index('rank') + 1] if 'rank' in path_entries else 'None'
 
 	for exp in experiments:
-		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm, exp, candidates)
+		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm, exp, candidates, scores_normalize)
 
 		with open(f'topk_d={dataset_name}_t={t_norm}_e={exp}_rank={rank}_k={candidates}.json', 'w') as fp:
 			json.dump(metrics, fp)
 
 
-def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3):
+def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3, scores_normalize = 0):
 	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
@@ -38,7 +38,7 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', quer
 
 	kbc = env.kbc
 
-	scores = kbc.model.query_answering_BF(env, candidates, t_norm=t_norm , batch_size=1)
+	scores = kbc.model.query_answering_BF(env, candidates, t_norm=t_norm , batch_size=1, scores_normalize = scores_normalize)
 	print(scores.shape)
 
 	queries = env.keys_hard
@@ -62,6 +62,7 @@ if __name__ == "__main__":
 	QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
 
 	t_norms = ['min', 'product']
+	normalize_choices = ['0', '1']
 
 	parser = argparse.ArgumentParser(
 	description="Query Answering BF namespace"
@@ -88,6 +89,11 @@ if __name__ == "__main__":
 	)
 
 	parser.add_argument(
+	'--scores_normalize', choices=normalize_choices, default='0',
+	help="A normalization flag for atomic scores".format(chain_types)
+	)
+
+	parser.add_argument(
 	'--t_norm', choices=t_norms, default='min',
 	help="T-norms available are ".format(t_norms)
 	)
@@ -107,4 +113,5 @@ if __name__ == "__main__":
 
 	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
 	candidates = int(args.candidates)
-	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, t_norm=args.t_norm, candidates=candidates)
+	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, t_norm=args.t_norm, candidates=candidates, \
+																				scores_normalize = int(args.scores_normalize))
