@@ -13,22 +13,17 @@ import torch
 from torch import nn
 from torch import optim
 from torch import Tensor
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
 
 from kbc.regularizers import Regularizer
 import tqdm
 
 import traceback
 
-import gc
-
 from kbc.utils import QuerDAG
-from kbc.utils import check_gpu
 from kbc.utils import DynKBCSingleton
 from kbc.utils import make_batches
-from kbc.utils import debug_memory
 from kbc.utils import Device
+
 
 class KBCModel(nn.Module, ABC):
 	@abstractmethod
@@ -106,61 +101,8 @@ class KBCModel(nn.Module, ABC):
 
 		return ranks
 
-	def projected_gradient_descent(self, query: tuple,regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001,
-									similarity_metric : str = 'l2'):
-
-		lhs = query[0].clone().detach().requires_grad_(False).to(query[0].device)
-		pred = query[1].clone().detach().requires_grad_(False).to(query[1].device)
-
-		obj_guess = torch.rand(lhs.shape, requires_grad=True, device=lhs.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-		obj_guess = obj_guess.clone().detach().requires_grad_(True).to(lhs.device)
-
-
-		optimizer = optim.Adam([obj_guess], lr=0.1)
-
-		prev_loss =  torch.tensor([1000.], dtype = torch.float)
-		loss = torch.tensor([999.],dtype=torch.float)
-
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-
-			i =1
-			losses = []
-
-			while i <= max_steps and (prev_loss - loss)>1e-30:
-
-				prev_loss = loss.clone()
-				l_reg = regularizer.forward((lhs, pred, obj_guess))
-				loss = -(self.score_emb(lhs, pred, obj_guess) - l_reg)
-
-				optimizer.zero_grad()
-
-				loss.backward()
-				optimizer.step()
-
-				i+=1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-				losses.append(loss.item())
-
-			if i != max_steps:
-				bar.update(max_steps-i +1)
-
-
-				print("\n\n Search converged early after {} iterations".format(i))
-			#print(losses)
-
-			#torch.cuda.empty_cache()
-			if 'cp' in self.model_type().lower():
-				closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-			elif 'complex' in self.model_type().lower():
-				closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-			else:
-				assert False, "Choose model type from cp or complex please"
-
-		return obj_guess, closest_map, indices_rankedby_distances
-
-	def __get_chains__(self, chains: List, graph_type: str = QuerDAG.TYPE1_2.value):
+	@staticmethod
+	def __get_chains__(chains: List, graph_type: str = QuerDAG.TYPE1_2.value):
 		if '2' in graph_type[-1]:
 			chain1, chain2 = chains
 		elif '3' in graph_type[-1]:
@@ -386,208 +328,8 @@ class KBCModel(nn.Module, ABC):
 
 		return scores
 
-	def __compute_similarities__(self, x: torch.tensor):
-		model_type = self.model_type().lower()
-		if 'cp' in model_type:
-			entities = self.rhs
-		elif 'complex' in model_type:
-			entities = self.embeddings[0].weight.data
-		else:
-			raise ValueError(f'Unknown model type {model_type}')
-
-		scores = x @ entities.t()
-
-		return scores
-
-	def type1_3chain_optimize_joint(self, chain1: tuple, chain2: tuple, chain3: tuple, regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
-
-		lhs_1 = chain1[0].clone().detach().requires_grad_(False).to(chain1[0].device)
-		rel_1 = chain1[1].clone().detach().requires_grad_(False).to(chain1[1].device)
-
-		rel_2 = chain2[1].clone().detach().requires_grad_(False).to(chain2[1].device)
-
-		rel_3 = chain3[1].clone().detach().requires_grad_(False).to(chain3[1].device)
-		rhs_3 = chain3[2].clone().detach().requires_grad_(False).to(chain3[2].device)
-
-		obj_guess_1 = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-		obj_guess_1= obj_guess_1.clone().detach().requires_grad_(True).to(lhs_1.device)
-
-		obj_guess_2 = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-		obj_guess_2 = obj_guess_1.clone().detach().requires_grad_(True).to(lhs_1.device)
-
-		optimizer = optim.Adam([obj_guess_1,obj_guess_2], lr=0.1)
-
-		prev_loss =  torch.tensor([1000.], dtype = torch.float)
-		loss = torch.tensor([999.],dtype=torch.float)
-
-		losses = []
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-
-			i =1
-			while i <= max_steps and (prev_loss - loss)>1e-30:
-
-				prev_loss = loss.clone()
-
-				l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess_1))
-				score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess_1))
-
-				l_reg_2 = regularizer.forward((obj_guess_1, rel_2, obj_guess_2))
-				score_2 = -(self.score_emb(obj_guess_1, rel_2, obj_guess_2) )
-
-				l_reg_3 = regularizer.forward((obj_guess_2, rel_3, rhs_3))
-				score_3 = -(self.score_emb(obj_guess_2, rel_3, rhs_3))
-
-				loss = torch.min(torch.stack([score_1,score_2,score_3])) - (-l_reg_3 - l_reg_2 - l_reg_1) \
-				+ 0.0001*((torch.dist(obj_guess_1, lhs_1, 2)) + (torch.dist(obj_guess_2, rhs_3, 2)))/2.0
-
-				optimizer.zero_grad()
-
-				loss.backward()
-				optimizer.step()
-
-				i+=1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-
-				losses.append(loss.item())
-
-
-			if i != max_steps:
-				bar.update(max_steps-i +1)
-
-				print("\n\n Search converged early after {} iterations".format(i))
-
-			if 'cp' in self.model_type().lower():
-				closest_map_1, indices_rankedby_distances_1 = self.__closest_matrix__(obj_guess_1,self.rhs,similarity_metric)
-				closest_map_2, indices_rankedby_distances_2 = self.__closest_matrix__(obj_guess_2,self.rhs,similarity_metric)
-			elif 'complex' in self.model_type().lower():
-				closest_map_1, indices_rankedby_distances_1 = self.__closest_matrix__(obj_guess_1,self.embeddings[0].weight.data,similarity_metric)
-				closest_map_2, indices_rankedby_distances_2 = self.__closest_matrix__(obj_guess_2,self.embeddings[0].weight.data,similarity_metric)
-			else:
-				assert False, "Choose model type from cp or complex please"
-
-		return obj_guess_1, obj_guess_2, closest_map_1,closest_map_2, indices_rankedby_distances_1,indices_rankedby_distances_2
-
-	def type1_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
-		lhs_1,rel_1,rhs_1,lhs_2,rel_2,rel_3,rhs_3 = self.__get_chains__(chains, graph_type =QuerDAG.TYPE1_3.value)
-
-		obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-		obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
-
-		optimizer = optim.Adam([obj_guess], lr=0.1)
-
-		prev_loss =  torch.tensor([1000.], dtype = torch.float)
-		loss = torch.tensor([999.],dtype=torch.float)
-
-
-		losses = []
-
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-
-			i =1
-			while i <= max_steps and (prev_loss - loss)>1e-30:
-
-				prev_loss = loss.clone()
-				# l_reg_1 = regularizer.forward((lhs_1, rel_1, rhs_1))
-				# score_1 = -(self.score_emb(lhs_1, rel_1, rhs_1))
-
-				l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
-				score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess) )
-
-				l_reg_3 = regularizer.forward((obj_guess, rel_3, rhs_3))
-				score_3 = -(self.score_emb(obj_guess, rel_3, rhs_3))
-
-
-
-				loss = torch.min(torch.stack([score_2,score_3])) - (-l_reg_3 - l_reg_2 )
-
-				optimizer.zero_grad()
-
-				loss.backward()
-				optimizer.step()
-
-				i+=1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-				losses.append(loss.item())
-
-			if i != max_steps:
-				bar.update(max_steps-i +1)
-				print("\n\n Search converged early after {} iterations".format(i))
-
-			#print(losses)
-			#torch.cuda.empty_cache()
-			#gc.collect()
-
-			if 'cp' in self.model_type().lower():
-				closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-
-			elif 'complex' in self.model_type().lower():
-				closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-
-			else:
-				assert False, "Choose model type from cp or complex please"
-
-		return obj_guess,closest_map,indices_rankedby_distances
-
-	def type2_3chain_optimize(self, chains:List, regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
-		lhs_1,rel_1,lhs_2,rel_2,lhs_3,rel_3 = self.__get_chains__(chains , graph_type  = QuerDAG.TYPE2_3.value)
-		obj_guess = torch.rand(lhs_1.shape, requires_grad=True, device=lhs_1.device)*1e-5 #lhs.clone().detach().requires_grad_(True).to(lhs.device)
-		obj_guess= obj_guess.clone().detach().requires_grad_(True).to(lhs_1.device)
-
-		optimizer = optim.Adam([obj_guess], lr=0.1)
-
-		prev_loss =  torch.tensor([1000.], dtype = torch.float)
-		loss = torch.tensor([999.],dtype=torch.float)
-
-		losses = []
-		with tqdm.tqdm(total=max_steps, unit='iter', disable=False) as bar:
-
-			i =1
-			while i <= max_steps and (prev_loss - loss)>1e-30:
-
-				prev_loss = loss.clone()
-
-				l_reg_1 = regularizer.forward((lhs_1, rel_1, obj_guess))
-				score_1 = -(self.score_emb(lhs_1, rel_1, obj_guess))
-
-				l_reg_2 = regularizer.forward((lhs_2, rel_2, obj_guess))
-				score_2 = -(self.score_emb(lhs_2, rel_2, obj_guess) )
-
-				l_reg_3 = regularizer.forward((lhs_3, rel_3, obj_guess))
-				score_3 = -(self.score_emb(lhs_3, rel_3, obj_guess))
-
-				loss = torch.min(torch.stack([score_1,score_2,score_3])) - (-l_reg_1 - l_reg_2 - l_reg_3 )
-
-				optimizer.zero_grad()
-
-				loss.backward()
-				optimizer.step()
-
-				i+=1
-				bar.update(1)
-				bar.set_postfix(loss=f'{loss.item():.6f}')
-
-				losses.append(loss.item())
-
-			if i != max_steps:
-				bar.update(max_steps-i +1)
-				print("\n\n Search converged early after {} iterations".format(i))
-
-			if 'cp' in self.model_type().lower():
-				closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.rhs,similarity_metric)
-			elif 'complex' in self.model_type().lower():
-				closest_map, indices_rankedby_distances = self.__closest_matrix__(obj_guess,self.embeddings[0].weight.data,similarity_metric)
-			else:
-				assert False, "Choose model type from cp or complex please"
-
-		return obj_guess,closest_map,indices_rankedby_distances
-
-	def type3_3chain_optimize(self, chains: List, regularizer: Regularizer,candidates: int = 1,
-									max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min' ):
+	def optimize_3_3(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+					 max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min'):
 
 		lhs_1, rel_1, rel_2, lhs_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE3_3.value)
 
@@ -644,9 +386,9 @@ class KBCModel(nn.Module, ABC):
 
 		return scores
 
-	def type4_3chain_optimize(self, chains: List, regularizer: Regularizer, candidates: int = 1,
-							  max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
-							  disjunctive=False):
+	def optimize_4_3(self, chains: List, regularizer: Regularizer, candidates: int = 1,
+					 max_steps: int = 20, step_size: float = 0.001, similarity_metric : str = 'l2', t_norm: str = 'min',
+					 disjunctive=False):
 		lhs_1, rel_1, lhs_2, rel_2, rel_3 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE4_3.value)
 
 		obj_guess_1 = torch.normal(0, self.init_size, lhs_1.shape, device=lhs_1.device, requires_grad=True)
@@ -756,8 +498,8 @@ class KBCModel(nn.Module, ABC):
 		elif 'prod' in t_conorm:
 			return (tens_1+tens_2) - (tens_1 * tens_2)
 
-	def min_max_rescale(self,x):
-		return (x-torch.min(x))/(torch.max(x)- torch.min(x))
+	def min_max_rescale(self, x):
+		return (x-torch.min(x))/(torch.max(x) - torch.min(x))
 
 	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', batch_size=4):
 
@@ -978,92 +720,6 @@ class KBCModel(nn.Module, ABC):
 		return res
 
 
-	def __expanded_pairwise_distances__(self,x, y=None):
-		'''
-		Input: x is a Nxd matrix
-			   y is an optional Mxd matirx
-		Output: dist is a NxM matrix where dist[i,j] is the square norm between x[i,:] and y[j,:]
-				if y is not given then use 'y=x'.
-		i.e. dist[i,j] = ||x[i,:]-y[j,:]||^2
-		'''
-
-		dist = None
-
-		x_norm = (torch.pow(x, 2)).sum(1).view(-1, 1)
-		if y is not None:
-			y_norm = (torch.pow(y, 2)).sum(1).view(1, -1)
-		else:
-			y = x
-			y_norm = x_norm.view(1, -1)
-
-		dist = x_norm + y_norm - 2.0 * torch.mm(x, torch.transpose(y, 0, 1))
-
-		return dist
-
-	def __closest_matrix__(self,obj_matrix: torch.Tensor, search_list: torch.Tensor,
-							similarity_metric : str = 'l2', dist_comput_method: str = 'fast'):
-
-		closest_matrix = []
-
-		with tqdm.tqdm(total=obj_matrix.shape[0], unit='iter', disable=False) as bar:
-
-			if 'euclid' in similarity_metric.lower() or 'l2' in similarity_metric.lower():
-
-				if 'fast' in dist_comput_method.lower():
-
-					dists = self.__expanded_pairwise_distances__(obj_matrix,search_list)
-					if dists is None:
-						print("Trying CPU")
-						dists = self.__expanded_pairwise_distances__(obj_matrix.clone().detach().requires_grad_(False).to("cpu"),search_list.to('cpu'))
-
-					min_inds = torch.argmin(dists,1)
-
-					indices_rankedby_distances = dists.clone().detach().requires_grad_(False).to("cpu").sort()[1]
-
-					dist_mins = dists.gather(1, min_inds.view(-1,1)).reshape(-1)
-					closest_matrix = torch.stack([min_inds.float(), dist_mins],1)
-
-					bar.update(len(obj_matrix))
-
-				elif 'stable' in dist_comput_method.lower():
-					for obj_vec in obj_matrix:
-						closest_vec = self.__closest_vector__(obj_vec,search_list, similarity_metric)
-
-						closest_matrix.append(closest_vec)
-						bar.update(1)
-				else:
-					assert False, "The Method for computing the closest vectors is Unknown, please choose from ['stable', 'fast']"
-
-			elif 'cosine' in similarity_metric.lower():
-
-				#implement the ranking task for cosine similarity
-				indices_rankedby_distances = None
-
-				for i in range(obj_matrix.shape[0]):
-					closest_vec = self.__closest_vector__(obj_matrix[i:i+1],search_list, similarity_metric)
-					closest_matrix.append(closest_vec)
-					bar.update(1)
-
-
-		return closest_matrix,indices_rankedby_distances
-
-	def __closest_vector__(self,obj_vec: torch.Tensor, search_list: torch.Tensor, similarity_metric : str = 'l2'):
-
-		closest = None
-
-		if 'euclid' in similarity_metric.lower() or 'l2' in similarity_metric.lower():
-			dists = torch.pairwise_distance(obj_vec, search_list, p=2,eps=1e-8)
-		elif 'cos' in similarity_metric.lower():
-			dists = torch.cosine_similarity(obj_vec,search_list,eps=1e-8)
-
-		min_ind = torch.argmin(dists)
-
-		closest = (min_ind,search_list[min_ind])
-
-		return closest
-
-
-
 class CP(KBCModel):
 	def __init__(
 			self, sizes: Tuple[int, int, int], rank: int,
@@ -1113,8 +769,6 @@ class CP(KBCModel):
 		return (lhs,rel)
 
 	def get_full_embeddigns(self, queries: torch.Tensor):
-
-
 		if torch.sum(queries[:, 0]).item() > 0:
 			lhs = self.lhs(queries[:, 0])
 		else:
@@ -1137,6 +791,7 @@ class CP(KBCModel):
 
 	def model_type(self):
 		return 'CP'
+
 
 class ComplEx(KBCModel):
 	def __init__(
@@ -1172,16 +827,11 @@ class ComplEx(KBCModel):
 			1, keepdim=True
 		)
 
+	def entity_embeddings(self, indices: Tensor):
+		return self.embeddings[0](indices)
 
-	def entity_embeddings(self, indcies: Tensor):
-		return self.embeddings[0](indcies)
-
-
-	def score_fixed(self,
-			  rel: Tensor,
-			  arg1: Tensor,
-			  arg2: Tensor,
-			  *args, **kwargs) -> Tensor:
+	def score_fixed(self, rel: Tensor, arg1: Tensor, arg2: Tensor,
+					*args, **kwargs) -> Tensor:
 		# [B, E]
 		rel_real, rel_img = rel[:, :self.rank], rel[:, self.rank:]
 		arg1_real, arg1_img = arg1[:, :self.rank], arg1[:, self.rank:]
@@ -1196,8 +846,7 @@ class ComplEx(KBCModel):
 		res = score1 + score2 + score3 - score4
 
 		del score1,score2, score3, score4, rel_real, rel_img, arg1_real, arg1_img, arg2_real, arg2_img
-		#torch.cuda.empty_cache()
-		# [B] Tensor
+
 		return res
 
 	def candidates_score(self,
@@ -1205,7 +854,6 @@ class ComplEx(KBCModel):
 				arg1: Optional[Tensor],
 				arg2: Optional[Tensor],
 				*args, **kwargs) -> Tuple[Optional[Tensor], Optional[Tensor]]:
-
 
 		emb = self.embeddings[0].weight
 
