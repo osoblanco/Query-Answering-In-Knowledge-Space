@@ -64,7 +64,7 @@ def main(argv):
                 res = path_to_results(best_test_path)
                 results += [res["HITS@3m_new"]]
 
-            print(f'd={d} rank={rank} ' + " ".join([f'{r:.3f}' for r in results]))
+            print(f'd={d} rank={rank} & ' + " & ".join([f'{r:.3f}' for r in results]))
 
 
 if __name__ == '__main__':

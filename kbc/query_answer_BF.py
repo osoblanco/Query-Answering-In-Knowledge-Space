@@ -8,9 +8,8 @@ from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm = 'min', candidates = 3):
-	experiments = ['1_2','2_2','2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+	experiments = ['1_2', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
 	# experiments = ['3_3', '4_3']
@@ -29,8 +28,6 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 
 
 def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3):
-	metrics = {}
-
 	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
