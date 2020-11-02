@@ -2,18 +2,7 @@ import argparse
 import pickle
 import json
 
-import torch
-
-import numpy as np
-
-from kbc.learn import kbc_model_load
-from kbc.learn import dataset_to_query
-
-from kbc.chain_dataset import ChaineDataset
-from kbc.chain_dataset import Chain
 from kbc.utils import QuerDAG
-from kbc.utils import DynKBCSingleton
-from kbc.utils import create_instructions
 from kbc.utils import preload_env
 
 from kbc.metrics import evaluation
