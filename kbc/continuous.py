@@ -39,7 +39,9 @@ def score_queries(args):
     disjunctive = args.chain_type in (QuerDAG.TYPE2_2_disj.value,
                                       QuerDAG.TYPE4_3_disj.value)
 
-    if args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
+    if args.chain_type == QuerDAG.TYPE1_1.value:
+        scores = kbc.model.link_prediction(chains)
+    elif args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
                                            max_steps=1000,
                                            lr=args.lr,

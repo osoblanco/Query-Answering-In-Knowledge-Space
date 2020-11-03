@@ -212,6 +212,10 @@ class DynKBCSingleton:
 
 
 def get_keys_and_targets(parts, targets, graph_type):
+    if len(parts) == 1:
+        part1 = parts[0]
+        part2 = None
+        part3 = None
     if len(parts) == 2:
         part1, part2 = parts
         part3 = None
@@ -221,12 +225,14 @@ def get_keys_and_targets(parts, targets, graph_type):
     target_ids = {}
     keys = []
 
-    for chain_iter in range(len(part2)):
+    for chain_iter in range(len(part1)):
 
-        if part3:
+        if len(parts) == 3:
             key = part1[chain_iter] + part2[chain_iter] + part3[chain_iter]
-        else:
+        elif len(parts) == 2:
             key = part1[chain_iter] + part2[chain_iter]
+        else:
+            key = part1[chain_iter]
 
         key = '_'.join(str(e) for e in key)
 
@@ -259,8 +265,46 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
 
         keys = []
         target_ids = {}
+        if QuerDAG.TYPE1_1.value == graph_type:
 
-        if QuerDAG.TYPE1_2.value == graph_type:
+            raw = dataset.type1_1chain
+
+            type1_1chain = []
+            for i in range(len(raw)):
+                type1_1chain.append(raw[i].data)
+
+            part1 = [x['raw_chain'] for x in type1_1chain]
+
+            flattened_part1 = []
+
+            # [[A,b,C][C,d,[Es]]
+
+            targets = []
+            for chain_iter in range(len(part1)):
+                flattened_part1.append([part1[chain_iter][0], part1[chain_iter][1],-(chain_iter+1234)])
+                targets.append(part1[chain_iter][2])
+
+            part1 = flattened_part1
+
+            target_ids, keys = get_keys_and_targets([part1], targets, graph_type)
+
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+            part1 = np.array(part1)
+            part1 = torch.tensor(part1.astype('int64'), device=device)
+
+            chain1 = kbc.model.get_full_embeddigns(part1)
+
+            lhs_norm = 0.0
+            for lhs_emb in chain1[0]:
+                lhs_norm+=torch.norm(lhs_emb)
+
+            lhs_norm/= len(chain1[0])
+
+            chains = [chain1]
+            parts = [part1]
+
+        elif QuerDAG.TYPE1_2.value == graph_type:
 
             raw = dataset.type1_2chain
 

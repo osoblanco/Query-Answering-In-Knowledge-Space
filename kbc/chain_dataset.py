@@ -30,6 +30,7 @@ class ChaineDataset():
         self.neighbour_relations = {}
         self.reverse_maps = {}
 
+        self.type1_1chain = []
         self.type1_2chain = []
         self.type2_2chain = []
         self.type2_2chain_u = []

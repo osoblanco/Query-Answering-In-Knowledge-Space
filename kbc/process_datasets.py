@@ -203,7 +203,9 @@ def get_hard_dataset(path, files, mode='hard'):
 
                 chains = get_sampled_chain(chain_type_cast, contents)
 
-                if '1chain2' == chain_type_cast:
+                if '1chain1' == chain_type_cast:
+                    chain_dataset.type1_1chain = chains
+                elif '1chain2' == chain_type_cast:
                     chain_dataset.type1_2chain = chains
                 elif '1chain3' == chain_type_cast:
                     chain_dataset.type1_3chain = chains
@@ -234,6 +236,18 @@ def get_sampled_chain(chain_type_cast, contents):
             new_chain = Chain()
             targets = list(contents[chain])
 
+            if '1chain1' in chain_type_cast:
+                rel = chain[0][-1][0]
+                anchor = chain[0][0]
+                converted_chain = [anchor, rel, targets]
+
+                new_chain.data['type'] = chain_type_cast
+                new_chain.data['raw_chain'] = converted_chain
+                new_chain.data['anchors'].append(anchor)
+                new_chain.data['optimisable'].append(-1)
+                new_chain.data['optimisable'] += targets
+
+                chain_array.append(new_chain)
             if '1chain2' in chain_type_cast:
                 rels = chain[0][-1]
                 anchor = chain[0][0]

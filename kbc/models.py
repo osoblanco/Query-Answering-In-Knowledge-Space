@@ -103,12 +103,20 @@ class KBCModel(nn.Module, ABC):
 
 	@staticmethod
 	def __get_chains__(chains: List, graph_type: str = QuerDAG.TYPE1_2.value):
-		if '2' in graph_type[-1]:
+		if graph_type == QuerDAG.TYPE1_1.value:
+			chain1 = chains[0]
+		elif '2' in graph_type[-1]:
 			chain1, chain2 = chains
 		elif '3' in graph_type[-1]:
 			chain1, chain2, chain3 = chains
 
-		if QuerDAG.TYPE1_2.value in graph_type:
+		if QuerDAG.TYPE1_1.value in graph_type:
+			lhs_1 = chain1[0]
+			rel_1 = chain1[1]
+
+			raw_chain = [lhs_1, rel_1]
+
+		elif QuerDAG.TYPE1_2.value in graph_type:
 			lhs_1 = chain1[0]
 			rel_1 = chain1[1]
 
@@ -237,6 +245,10 @@ class KBCModel(nn.Module, ABC):
 			raise ValueError(f't_conorm must be "min" or "prod", got {norm_type}')
 
 		return scores
+
+	def link_prediction(self, chains: List):
+		lhs_1, rel_1 = self.__get_chains__(chains, graph_type=QuerDAG.TYPE1_1.value)
+		return self.forward_emb(lhs_1, rel_1)
 
 	def optimize_chains(self, chains: List, regularizer: Regularizer,
 						max_steps: int = 20, lr: float = 0.1,
