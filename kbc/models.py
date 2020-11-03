@@ -457,7 +457,7 @@ class KBCModel(nn.Module, ABC):
 				logger.info(f'{"Rank":<6} {"X":<30} {"Score":<8}')
 				for i in range(z_indices.shape[1]):
 					ent_id = z_indices[0, i].item()
-					ent_score = z_scores[0, i].item()
+					ent_score = torch.sigmoid(z_scores[0, i]).item()
 					logger.info(f'{i:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
 		else:
 			z_scores = scores
