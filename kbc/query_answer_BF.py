@@ -1,3 +1,5 @@
+from collections import defaultdict
+import os.path as osp
 import argparse
 import pickle
 import json
@@ -8,7 +10,8 @@ from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm = 'min', candidates = 3, scores_normalize = 0):
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min',
+						candidates=3, scores_normalize=0, kg_path=None):
 	experiments = ['1_2', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
@@ -21,14 +24,14 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	rank = path_entries[path_entries.index('rank') + 1] if 'rank' in path_entries else 'None'
 
 	for exp in experiments:
-		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm, exp, candidates, scores_normalize)
+		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm, exp, candidates, scores_normalize, kg_path)
 
 		with open(f'topk_d={dataset_name}_t={t_norm}_e={exp}_rank={rank}_k={candidates}.json', 'w') as fp:
 			json.dump(metrics, fp)
 
 
-def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3, scores_normalize = 0):
-	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
+def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3, scores_normalize = 0, kg_path=None):
+	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard', kg_path=kg_path)
 	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
 	if '1' in env.chain_instructions[-1][-1]:
@@ -103,6 +106,10 @@ if __name__ == "__main__":
 	help="Candidate amount for beam search"
 	)
 
+	parser.add_argument('--kg_path',
+						help='Path to containing ID maps and entity names',
+						type=str)
+
 	args = parser.parse_args()
 
 	data_hard_path = args.dataset+'_hard.pkl'
@@ -113,5 +120,5 @@ if __name__ == "__main__":
 
 	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
 	candidates = int(args.candidates)
-	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, t_norm=args.t_norm, candidates=candidates, \
-																				scores_normalize = int(args.scores_normalize))
+	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, t_norm=args.t_norm,
+						candidates=candidates, scores_normalize=int(args.scores_normalize), kg_path=args.kg_path)

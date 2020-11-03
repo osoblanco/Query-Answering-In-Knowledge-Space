@@ -8,6 +8,7 @@
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Optional, Callable
 import math
+import logging
 
 import torch
 from torch import nn
@@ -427,7 +428,7 @@ class KBCModel(nn.Module, ABC):
 			arg1: Optional[Tensor],
 			arg2: Optional[Tensor],
 			candidates: int = 5,
-			last_step = False) -> Tuple[Tensor, Tensor]:
+			last_step = False, env: DynKBCSingleton = None) -> Tuple[Tensor, Tensor]:
 
 		z_scores, z_emb, z_indices = None, None , None
 
@@ -450,6 +451,14 @@ class KBCModel(nn.Module, ABC):
 			z_emb = self.entity_embeddings(z_indices)
 			assert z_emb.shape[0] == batch_size
 			assert z_emb.shape[2] == embedding_size
+
+			if env is not None:
+				logger = logging.getLogger('explain')
+				logger.info(f'{"Rank":<6} {"X":<30} {"Score":<8}')
+				for i in range(z_indices.shape[1]):
+					ent_id = z_indices[0, i].item()
+					ent_score = z_scores[0, i].item()
+					logger.info(f'{i:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
 		else:
 			z_scores = scores
 
@@ -492,7 +501,24 @@ class KBCModel(nn.Module, ABC):
 
 		batches = make_batches(nb_queries, batch_size)
 
-		for batch in tqdm.tqdm(batches):
+		explain = env.graph_type == '1_2'
+		if explain:
+			logger = logging.getLogger('explain')
+			logger.setLevel(logging.INFO)
+			fh = logging.FileHandler('explain.log', mode='w')
+			fh.setLevel(logging.INFO)
+			logger.addHandler(fh)
+
+		for i, batch in enumerate(tqdm.tqdm(batches)):
+			if explain:
+				query = env.keys_complete[i]
+				anchor, rel1, x1, x2, rel2, x3 = query.split('_')
+				anchor = env.fb2name[env.ent_id2fb[int(anchor)]]
+				rel1 = env.rel_id2fb[int(rel1)]
+				rel2 = env.rel_id2fb[int(rel2)]
+				logger.info('-' * 100)
+				logger.info(f'Query: ?Y:∃ X.({anchor}, {rel1}, X) and (X, {rel2}, Y)')
+
 
 			nb_branches = 1
 			nb_ent = 0
@@ -542,7 +568,7 @@ class KBCModel(nn.Module, ABC):
 							if f"rhs_{ind}" not in candidate_cache:
 
 								# print("STTEEE MTA")
-								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step)
+								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step, env if explain else None)
 
 								# [Num_queries * Candidates^K]
 								z_scores_1d = z_scores.view(-1)
@@ -678,6 +704,28 @@ class KBCModel(nn.Module, ABC):
 				# S ==  K**(V-1)
 				scores_2d = batch_scores.view(batch_size,-1, nb_ent )
 				res, _ = torch.max(scores_2d, dim=1)
+
+				if explain:
+					final_scores = scores_2d.squeeze()
+					for j in range(final_scores.shape[0]):
+						logger.info(f'X = {j}')
+
+						z_scores, z_indices = torch.topk(final_scores, k=candidates, dim=1)
+
+						logger.info(f'\t{"Rank":<6} {"Y":<30} {"Final score":<12}')
+						for k in range(z_indices.shape[1]):
+							ent_id = z_indices[0, k].item()
+							ent_score = z_scores[0, k].item()
+							logger.info(f'\t{k:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
+
+					res_top_val, res_top_idx = torch.topk(res.squeeze(), k=candidates)
+					logger.info(f'Top {candidates} final answers')
+					logger.info(f'{"Rank":<6} {"Y":<30} {"Final score":<12}')
+					for j in range(res_top_val.shape[0]):
+						ent_id = res_top_idx[j].item()
+						ent_score = res_top_val[j].item()
+						logger.info(f'{j:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
+
 				scores = res if scores is None else torch.cat([scores,res])
 
 				del batch_scores, scores_2d, res,candidate_cache
@@ -688,6 +736,9 @@ class KBCModel(nn.Module, ABC):
 				pass
 
 			res = scores
+
+		if explain:
+			fh.close()
 
 		return res
 
