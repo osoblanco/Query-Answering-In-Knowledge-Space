@@ -57,7 +57,7 @@ def score_queries(args):
             _scores = kbc.model.link_prediction(_chains)
             scores_lst += [_scores]
 
-        scores = torch.concat(0, scores_lst)
+        scores = torch.cat(scores_lst, 0)
 
     elif args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
