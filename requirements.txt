@@ -1,5 +1,5 @@
 tqdm
-pytorch
+torch
 numpy
 scikit-learn
 scipy
