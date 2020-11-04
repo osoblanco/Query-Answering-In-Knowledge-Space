@@ -51,11 +51,11 @@ def score_queries(args):
         scores_lst = []
         nb_queries = s_emb.shape[0]
         for i in tqdm(range(nb_queries)):
-            _s_emb = s_emb[i, :].view(1, -1)
-            _p_emb = p_emb[i, :].view(1, -1)
-            _chains = [(_s_emb, _p_emb, None)]
-            _scores = kbc.model.link_prediction(_chains)
-            scores_lst += [_scores]
+            batch_s_emb = s_emb[i, :].view(1, -1)
+            batch_p_emb = p_emb[i, :].view(1, -1)
+            batch_chains = [(batch_s_emb, batch_p_emb, None)]
+            batch_scores = kbc.model.link_prediction(batch_chains)
+            scores_lst += [batch_scores]
 
         scores = torch.cat(scores_lst, 0)
 
