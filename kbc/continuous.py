@@ -61,7 +61,7 @@ def score_queries(args):
 
     elif args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
-                                           max_steps=1000,
+                                           max_steps=args.max_steps,
                                            lr=args.lr,
                                            optimizer=args.optimizer,
                                            norm_type=args.t_norm)
@@ -69,7 +69,7 @@ def score_queries(args):
     elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value,
                              QuerDAG.TYPE2_3.value):
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
-                                                  max_steps=1000,
+                                                  max_steps=args.max_steps,
                                                   lr=args.lr,
                                                   optimizer=args.optimizer,
                                                   norm_type=args.t_norm,
@@ -77,7 +77,7 @@ def score_queries(args):
 
     elif args.chain_type == QuerDAG.TYPE3_3.value:
         scores = kbc.model.optimize_3_3(chains, kbc.regularizer,
-                                        max_steps=1000,
+                                        max_steps=args.max_steps,
                                         lr=args.lr,
                                         optimizer=args.optimizer,
                                         norm_type=args.t_norm)
@@ -85,7 +85,7 @@ def score_queries(args):
     elif args.chain_type in (QuerDAG.TYPE4_3.value,
                              QuerDAG.TYPE4_3_disj.value):
         scores = kbc.model.optimize_4_3(chains, kbc.regularizer,
-                                        max_steps=1000,
+                                        max_steps=args.max_steps,
                                         lr=args.lr,
                                         optimizer=args.optimizer,
                                         norm_type=args.t_norm,
@@ -132,5 +132,6 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--optimizer', type=str, default='adam',
                         choices=['adam', 'adagrad', 'sgd'])
+    parser.add_argument('--max-steps', type=int, default=1000)
 
     main(parser.parse_args())
