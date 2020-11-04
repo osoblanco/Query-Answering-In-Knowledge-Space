@@ -4,6 +4,9 @@ import os.path as osp
 from pathlib import Path
 import json
 
+from tqdm import tqdm
+import torch
+
 from kbc.utils import QuerDAG
 from kbc.utils import preload_env
 from kbc.metrics import evaluation
@@ -40,7 +43,22 @@ def score_queries(args):
                                       QuerDAG.TYPE4_3_disj.value)
 
     if args.chain_type == QuerDAG.TYPE1_1.value:
-        scores = kbc.model.link_prediction(chains)
+        # scores = kbc.model.link_prediction(chains)
+
+        s_emb = chains[0][0]
+        p_emb = chains[0][1]
+
+        scores_lst = []
+        nb_queries = s_emb.shape[0]
+        for i in tqdm(range(nb_queries)):
+            _s_emb = s_emb[i, :].view(1, -1)
+            _p_emb = p_emb[i, :].view(1, -1)
+            _chains = [(_s_emb, _p_emb, None)]
+            _scores = kbc.model.link_prediction(_chains)
+            scores_lst += [_scores]
+
+        scores = torch.concat(0, scores_lst)
+
     elif args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
                                            max_steps=1000,
