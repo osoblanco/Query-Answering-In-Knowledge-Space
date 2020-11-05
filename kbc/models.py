@@ -714,9 +714,11 @@ class KBCModel(nn.Module, ABC):
 
 						logger.info(f'\t{"Rank":<6} {"Y":<30} {"Final score":<12}')
 						for k in range(z_indices.shape[1]):
-							ent_id = z_indices[0, k].item()
-							ent_score = z_scores[0, k].item()
+							ent_id = z_indices[j, k].item()
+							ent_score = z_scores[j, k].item()
 							logger.info(f'\t{k:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
+
+					test_answers = set(env.target_ids_complete[query])
 
 					res_top_val, res_top_idx = torch.topk(res.squeeze(), k=candidates)
 					logger.info(f'Top {candidates} final answers')
@@ -724,7 +726,8 @@ class KBCModel(nn.Module, ABC):
 					for j in range(res_top_val.shape[0]):
 						ent_id = res_top_idx[j].item()
 						ent_score = res_top_val[j].item()
-						logger.info(f'{j:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
+						correct = '✓' if ent_id in test_answers else '✗'
+						logger.info(f'[{correct}] {j:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
 
 				scores = res if scores is None else torch.cat([scores,res])
 
