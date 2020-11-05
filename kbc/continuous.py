@@ -105,7 +105,7 @@ def main(args):
     model_name = osp.splitext(osp.basename(args.model_path))[0]
     reg_str = f'{args.reg}' if args.reg is not None else 'None'
     
-    with open(f'cont_n={model_name}_t={args.chain_type}_r={reg_str}_m={args.dataset_mode}.json', 'w') as f:
+    with open(f'cont_n={model_name}_t={args.chain_type}_r={reg_str}_m={args.dataset_mode}_lr={args.lr}_opt={args.optimizer}_ms={args.max_steps}.json', 'w') as f:
         json.dump(metrics, f)
 
 
@@ -122,7 +122,6 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', choices=datasets, help="Dataset in {}".format(datasets))
     parser.add_argument('--dataset_mode', choices=dataset_modes, default='train',
                         help="Dataset validation mode in {}".format(dataset_modes))
-    parser.add_argument('--similarity_metric', default='l2')
 
     parser.add_argument('--chain_type', choices=chain_types, default=QuerDAG.TYPE1_1.value,
                         help="Chain type experimenting for ".format(chain_types))
