@@ -729,6 +729,10 @@ class KBCModel(nn.Module, ABC):
 						correct = '✓' if ent_id in test_answers else '✗'
 						logger.info(f'[{correct}] {j:<6} {env.fb2name[env.ent_id2fb[ent_id]]:<30} {ent_score:<8.4f}')
 
+					logger.info(f'Ground truth answers')
+					for ans in test_answers:
+						logger.info(f'- {env.fb2name[env.ent_id2fb[ans]]}')
+
 				scores = res if scores is None else torch.cat([scores,res])
 
 				del batch_scores, scores_2d, res,candidate_cache
