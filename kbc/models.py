@@ -695,9 +695,7 @@ class KBCModel(nn.Module, ABC):
 				del batch_scores, scores_2d, res,candidate_cache
 
 			else:
-				print("Batch Scores are empty: an error went uncaught.")
-				print(traceback.print_exc())
-				pass
+				assert False, "Batch Scores are empty: an error went uncaught."
 
 			res = scores
 
