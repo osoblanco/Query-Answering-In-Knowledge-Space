@@ -5,7 +5,8 @@ dsets = ['FB15K', 'FB237', 'NELL']
 ranks = [100, 200, 500, 1000]
 tnorms = ['min', 'product']
 
-candidates = [4, 8, 16, 32, 64, 128, 256]
+# candidates = [4, 8, 16, 32, 64, 128, 256]
+candidates = [10, 12, 14]
 
 cmd_lines = []
 
