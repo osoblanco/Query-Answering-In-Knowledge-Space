@@ -8,6 +8,8 @@ import os.path
 
 import json
 
+import argparse
+
 import logging
 
 logger = logging.getLogger(os.path.basename(sys.argv[0]))
@@ -25,7 +27,12 @@ def path_to_results(path):
 
 
 def main(argv):
-    key_to_path = {path_to_key(path): path for path in argv}
+    parser = argparse.ArgumentParser(description='Parse results.')
+    parser.add_argument('paths', metavar='path', type=str, nargs='+')
+
+    args = parser.parse_args(argv)
+
+    key_to_path = {path_to_key(path): path for path in args.paths}
 
     key_lst = sorted([key for key in key_to_path])
 
