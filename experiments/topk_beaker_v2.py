@@ -6,7 +6,7 @@ ranks = [100, 200, 500, 1000]
 tnorms = ['min', 'product']
 
 # candidates = [4, 8, 16, 32, 64, 128, 256]
-candidates = [10, 12, 14]
+candidates = [10, 11, 12, 13, 14, 15]
 
 cmd_lines = []
 
