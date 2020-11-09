@@ -29,8 +29,16 @@ def path_to_results(path):
 def main(argv):
     parser = argparse.ArgumentParser(description='Parse results.')
     parser.add_argument('paths', metavar='path', type=str, nargs='+')
+    parser.add_argument('--mrr', action='store_true', default=False)
 
     args = parser.parse_args(argv)
+
+    is_mrr = args.mrr
+
+    metric = "HITS@3m_new"
+    if is_mrr is True:
+        print('Using MRR ..')
+        metric = "MRRm_new"
 
     key_to_path = {path_to_key(path): path for path in args.paths}
 
@@ -54,21 +62,17 @@ def main(argv):
 
                 for key in _keys:
                     res = path_to_results(key_to_path[key])
-                    if best_value is None or res["HITS@3m_new"] > best_value:
+                    if best_value is None or res[metric] > best_value:
                         _tmp = key.replace('_dev', '')                        
                         if _tmp in key_to_path and os.path.isfile(key_to_path[_tmp]): 
                             best_dev_key = key
-                            best_value = res["HITS@3m_new"]
+                            best_value = res[metric]
 
                 best_test_key = best_dev_key.replace('_dev', '')
                 best_test_path = key_to_path[best_test_key]
 
-                #print(best_test_path)
-                # if '2_2' in best_test_path:
-                # print(best_test_path)
-
                 res = path_to_results(best_test_path)
-                results += [res["HITS@3m_new"]]
+                results += [res[metric]]
 
             print(f'd={d} rank={rank} & ' + " & ".join([f'{r:.3f}' for r in results]))
 
