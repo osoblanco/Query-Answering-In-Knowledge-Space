@@ -8,8 +8,9 @@ from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm = 'min', candidates = 3, scores_normalize = 0):
-	experiments = ['1_2', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min', candidates=3, scores_normalize=0):
+	# for query in ['1_2', '1_3', '2_2', '2_3', '4_3', '3_3', '2_2_disj', '4_3_disj']:
+	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
 	# experiments = ['3_3', '4_3']
@@ -23,8 +24,9 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	for exp in experiments:
 		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm, exp, candidates, scores_normalize)
 
-		with open(f'topk_d={dataset_name}_t={t_norm}_e={exp}_rank={rank}_k={candidates}.json', 'w') as fp:
+		with open(f'topk_d={dataset_name}_t={t_norm}_e={exp}_rank={rank}_k={candidates}_sn={scores_normalize}.json', 'w') as fp:
 			json.dump(metrics, fp)
+	return
 
 
 def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3, scores_normalize = 0):

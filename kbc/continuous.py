@@ -51,17 +51,17 @@ def score_queries(args):
         scores_lst = []
         nb_queries = s_emb.shape[0]
         for i in tqdm(range(nb_queries)):
-            _s_emb = s_emb[i, :].view(1, -1)
-            _p_emb = p_emb[i, :].view(1, -1)
-            _chains = [(_s_emb, _p_emb, None)]
-            _scores = kbc.model.link_prediction(_chains)
-            scores_lst += [_scores]
+            batch_s_emb = s_emb[i, :].view(1, -1)
+            batch_p_emb = p_emb[i, :].view(1, -1)
+            batch_chains = [(batch_s_emb, batch_p_emb, None)]
+            batch_scores = kbc.model.link_prediction(batch_chains)
+            scores_lst += [batch_scores]
 
         scores = torch.cat(scores_lst, 0)
 
     elif args.chain_type in (QuerDAG.TYPE1_2.value, QuerDAG.TYPE1_3.value):
         scores = kbc.model.optimize_chains(chains, kbc.regularizer,
-                                           max_steps=1000,
+                                           max_steps=args.max_steps,
                                            lr=args.lr,
                                            optimizer=args.optimizer,
                                            norm_type=args.t_norm)
@@ -69,7 +69,7 @@ def score_queries(args):
     elif args.chain_type in (QuerDAG.TYPE2_2.value, QuerDAG.TYPE2_2_disj.value,
                              QuerDAG.TYPE2_3.value):
         scores = kbc.model.optimize_intersections(chains, kbc.regularizer,
-                                                  max_steps=1000,
+                                                  max_steps=args.max_steps,
                                                   lr=args.lr,
                                                   optimizer=args.optimizer,
                                                   norm_type=args.t_norm,
@@ -77,7 +77,7 @@ def score_queries(args):
 
     elif args.chain_type == QuerDAG.TYPE3_3.value:
         scores = kbc.model.optimize_3_3(chains, kbc.regularizer,
-                                        max_steps=1000,
+                                        max_steps=args.max_steps,
                                         lr=args.lr,
                                         optimizer=args.optimizer,
                                         norm_type=args.t_norm)
@@ -85,7 +85,7 @@ def score_queries(args):
     elif args.chain_type in (QuerDAG.TYPE4_3.value,
                              QuerDAG.TYPE4_3_disj.value):
         scores = kbc.model.optimize_4_3(chains, kbc.regularizer,
-                                        max_steps=1000,
+                                        max_steps=args.max_steps,
                                         lr=args.lr,
                                         optimizer=args.optimizer,
                                         norm_type=args.t_norm,
@@ -105,7 +105,7 @@ def main(args):
     model_name = osp.splitext(osp.basename(args.model_path))[0]
     reg_str = f'{args.reg}' if args.reg is not None else 'None'
     
-    with open(f'cont_n={model_name}_t={args.chain_type}_r={reg_str}_m={args.dataset_mode}.json', 'w') as f:
+    with open(f'cont_n={model_name}_t={args.chain_type}_r={reg_str}_m={args.dataset_mode}_lr={args.lr}_opt={args.optimizer}_ms={args.max_steps}.json', 'w') as f:
         json.dump(metrics, f)
 
 
@@ -122,7 +122,6 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', choices=datasets, help="Dataset in {}".format(datasets))
     parser.add_argument('--dataset_mode', choices=dataset_modes, default='train',
                         help="Dataset validation mode in {}".format(dataset_modes))
-    parser.add_argument('--similarity_metric', default='l2')
 
     parser.add_argument('--chain_type', choices=chain_types, default=QuerDAG.TYPE1_1.value,
                         help="Chain type experimenting for ".format(chain_types))
@@ -132,5 +131,6 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--optimizer', type=str, default='adam',
                         choices=['adam', 'adagrad', 'sgd'])
+    parser.add_argument('--max-steps', type=int, default=1000)
 
     main(parser.parse_args())
