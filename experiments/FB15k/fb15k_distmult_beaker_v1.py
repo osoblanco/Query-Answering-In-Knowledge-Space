@@ -38,7 +38,7 @@ def main(argv):
 
     configurations = list(cartesian_product(hyp_space))
 
-    path = 'logs/fb15k/fb15k_beaker_v1'
+    path = 'logs/fb15k/fb15k_distmult_beaker_v1'
     is_rc = False
 
     # Check that we are on the UCLCS cluster first
