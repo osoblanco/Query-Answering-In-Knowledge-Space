@@ -8,6 +8,8 @@
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Optional, Callable
 import math
+import time
+import pickle
 
 import torch
 from torch import nn
@@ -16,7 +18,7 @@ from torch import Tensor
 
 from kbc.regularizers import Regularizer
 import tqdm
-
+import os
 import traceback
 
 from kbc.utils import QuerDAG
@@ -485,7 +487,8 @@ class KBCModel(nn.Module, ABC):
 	def min_max_rescale(self, x):
 		return (x-torch.min(x))/(torch.max(x) - torch.min(x))
 
-	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', batch_size = 1, scores_normalize = 0):
+	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', \
+							batch_size = 1, scores_normalize = 0, timing_threshold = 0):
 
 		res = None
 
@@ -503,6 +506,7 @@ class KBCModel(nn.Module, ABC):
 		# data_loader = DataLoader(dataset=chains, batch_size=16, shuffle=False)
 
 		batches = make_batches(nb_queries, batch_size)
+		timing_beam = []
 
 		for batch in tqdm.tqdm(batches):
 
@@ -510,6 +514,9 @@ class KBCModel(nn.Module, ABC):
 			nb_ent = 0
 			batch_scores = None
 			candidate_cache = {}
+			if batch[-1] > timing_threshold and timing_threshold:
+				break
+
 
 			batch_size = batch[1] - batch[0]
 			#torch.cuda.empty_cache()
@@ -518,6 +525,8 @@ class KBCModel(nn.Module, ABC):
 				dnf_flag = True
 
 			for inst_ind, inst in enumerate(chain_instructions):
+				start_time = time.time()
+
 				with torch.no_grad():
 					if 'hop' in inst:
 
@@ -585,7 +594,8 @@ class KBCModel(nn.Module, ABC):
 
 							last_hop =  True
 							del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
-							# #torch.cuda.empty_cache()
+
+
 
 					elif 'inter' in inst:
 						ind_1 = int(inst.split("_")[-2])
@@ -685,6 +695,10 @@ class KBCModel(nn.Module, ABC):
 
 							del lhs, rel, rhs, rhs_3d, z_scores_1d, z_scores
 
+			end_time = time.time()
+			# print(f"Iteration of {env.name} {env.graph_type} query took {end_time-start_time}")
+			timing_beam.append(end_time-start_time)
+
 			if batch_scores is not None:
 				# [B * entites * S ]
 				# S ==  K**(V-1)
@@ -698,6 +712,10 @@ class KBCModel(nn.Module, ABC):
 				assert False, "Batch Scores are empty: an error went uncaught."
 
 			res = scores
+
+
+		with open(os.path.join(os.getcwd(), f"Timings/{env.name}_{timing_threshold}_{env.graph_type}_{candidates}.pkl"), 'wb') as f:
+			pickle.dump(timing_beam, f)
 
 		return res
 
