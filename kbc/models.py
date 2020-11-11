@@ -957,3 +957,111 @@ class ComplEx(KBCModel):
 
 	def model_type(self):
 		return "ComplEx"
+
+
+class DistMult(KBCModel):
+	def __init__(
+			self, sizes: Tuple[int, int, int], rank: int,
+			init_size: float = 1e-3
+	):
+		super(DistMult, self).__init__()
+
+		self.sizes = sizes
+		self.rank = rank
+
+		self.embeddings = nn.ModuleList([nn.Embedding(s, rank, sparse=True) for s in sizes[:2]])
+		self.embeddings[0].weight.data *= init_size
+		self.embeddings[1].weight.data *= init_size
+
+		self.init_size = init_size
+
+	def score(self, x):
+		lhs = self.embeddings[0](x[:, 0])
+		rel = self.embeddings[1](x[:, 1])
+		rhs = self.embeddings[0](x[:, 2])
+
+		return torch.sum(lhs * rel * rhs, 1, keepdim=True)
+
+	def entity_embeddings(self, indices: Tensor):
+		return self.embeddings[0](indices)
+
+	def score_fixed(self, rel: Tensor, arg1: Tensor, arg2: Tensor,
+					*args, **kwargs) -> Tensor:
+		return torch.sum(rel * arg1 * arg2, 1)
+
+	def candidates_score(self,
+				rel: Tensor,
+				arg1: Optional[Tensor],
+				arg2: Optional[Tensor],
+				*args, **kwargs) -> Tuple[Optional[Tensor], Optional[Tensor]]:
+
+		emb = self.embeddings[0].weight
+
+		# [B] Tensor
+
+		score_sp = score_po = None
+
+		if arg1 is not None:
+			score_sp = (rel * arg1) @ emb.t()
+
+		if arg2 is not None:
+			score_po = (rel * arg2) @ emb.t()
+
+		return score_sp, score_po
+
+	def score_emb(self, lhs_emb, rel_emb, rhs_emb):
+		return (torch.sum(lhs_emb * rel_emb * rhs_emb[0], 1, keepdim=True),
+				(lhs_emb, rel_emb, rhs_emb))
+
+	def forward(self, x):
+		lhs = self.embeddings[0](x[:, 0])
+		rel = self.embeddings[1](x[:, 1])
+		rhs = self.embeddings[0](x[:, 2])
+
+		to_score = self.embeddings[0].weight
+		return ((lhs * rel) @ to_score.transpose(0, 1),
+				(lhs, rel, rhs))
+
+	def forward_emb(self, lhs, rel):
+		to_score = self.embeddings[0].weight
+		return (lhs * rel) @ to_score.transpose(0, 1)
+
+	def get_rhs(self, chunk_begin: int, chunk_size: int):
+		return self.embeddings[0].weight.data[
+			chunk_begin:chunk_begin + chunk_size
+		].transpose(0, 1)
+
+	def get_queries_separated(self, queries: torch.Tensor):
+		lhs = self.embeddings[0](queries[:, 0])
+		rel = self.embeddings[1](queries[:, 1])
+
+		return (lhs, rel)
+
+	def get_full_embeddigns(self, queries: torch.Tensor):
+
+		if torch.sum(queries[:, 0]).item() > 0:
+			lhs = self.embeddings[0](queries[:, 0])
+		else:
+			lhs = None
+
+		if torch.sum(queries[:, 1]).item() > 0:
+
+			rel = self.embeddings[1](queries[:, 1])
+		else:
+			rel = None
+
+		if torch.sum(queries[:, 2]).item() > 0:
+			rhs = self.embeddings[0](queries[:, 2])
+		else:
+			rhs = None
+
+		return (lhs,rel,rhs)
+
+	def get_queries(self, queries: torch.Tensor):
+		lhs = self.embeddings[0](queries[:, 0])
+		rel = self.embeddings[1](queries[:, 1])
+
+		return lhs * rel
+
+	def model_type(self):
+		return "DistMult"

@@ -16,7 +16,7 @@ import torch
 from torch import optim
 
 from kbc.datasets import Dataset
-from kbc.models import CP, ComplEx
+from kbc.models import CP, ComplEx, DistMult
 from kbc.regularizers import N2, N3
 from kbc.optimizers import KBCOptimizer
 
@@ -77,7 +77,7 @@ def train_kbc(KBC_optimizer, dataset, args):
 							'model_state_dict': KBC_optimizer.model.state_dict(),
 							'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
 							'loss': cur_loss},
-							 os.path.join(model_dir, '{}-model-rank-{}-epoch-{}-{}.pt'.format(args.dataset,args.rank,epoch,timestamp)))
+							 os.path.join(model_dir, '{}-{}-model-rank-{}-epoch-{}-{}.pt'.format(args.dataset, args.model, args.rank, epoch, timestamp)))
 
 				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
 					json.dump(vars(args), json_file)
@@ -90,8 +90,9 @@ def train_kbc(KBC_optimizer, dataset, args):
 
 	return curve, results
 
+
 def kbc_model_load(model_path):
-	'''
+	"""
 	This function loads the KBC model given the model. It uses the
 	common identifiers in the name to identify the metadata/model files
 	and load from there.
@@ -102,59 +103,52 @@ def kbc_model_load(model_path):
 		model : Class(KBCOptimizer)
 		epoch : The epoch trained until (int)
 		loss  : The last loss stored in the model
-	'''
+	"""
+	identifiers = model_path.split('/')[-1]
+	identifiers = identifiers.split('-')
 
-	try:
+	dataset_name, timestamp = identifiers[0].strip(), identifiers[-1][:-3].strip()
+	if "YAGO" in dataset_name:
+		dataset_name = "YAGO3-10"
+	if 'FB15k' and '237' in identifiers:
+		dataset_name = 'FB15k-237'
 
-		identifiers = model_path.split('/')[-1]
-		identifiers = identifiers.split('-')
+	model_dir = os.path.dirname(model_path)
 
-		dataset_name, timestamp = identifiers[0].strip(), identifiers[-1][:-3].strip()
-		if "YAGO" in dataset_name:
-			dataset_name = "YAGO3-10"
-		if 'FB15k' and '237' in identifiers:
-			dataset_name = 'FB15k-237'
+	with open(os.path.join(model_dir, f'{dataset_name}-metadata-{timestamp}.json'), 'r') as json_file:
+		metadata = json.load(json_file)
 
-		model_dir = os.path.dirname(model_path)
+	map_location = None
+	if not torch.cuda.is_available():
+		map_location = torch.device('cpu')
 
-		with open(os.path.join(model_dir, f'{dataset_name}-metadata-{timestamp}.json'), 'r') as json_file:
-			metadata = json.load(json_file)
+	checkpoint = torch.load(model_path, map_location=map_location)
 
-		map_location = None
-		if not torch.cuda.is_available():
-			map_location = torch.device('cpu')
+	factorizer_name  = checkpoint['factorizer_name']
+	models = ['CP', 'ComplEx', 'DistMult']
+	if 'cp' in factorizer_name.lower():
+		model = CP(metadata['data_shape'], metadata['rank'], metadata['init'])
+	elif 'complex' in factorizer_name.lower():
+		model = ComplEx(metadata['data_shape'], metadata['rank'], metadata['init'])
+	elif 'distmult' in factorizer_name.lower():
+		model = DistMult(metadata['data_shape'], metadata['rank'], metadata['init'])
+	else:
+		raise ValueError(f'Model {factorizer_name} not in {models}')
 
-		checkpoint = torch.load(model_path, map_location=map_location)
+	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+	model.to(device)
 
-		factorizer_name  = checkpoint['factorizer_name']
-		model = None
-		if 'cp' in factorizer_name.lower():
-			model = CP(metadata['data_shape'], metadata['rank'], metadata['init'])
+	regularizer = checkpoint['regularizer']
+	optim_method = checkpoint['optim_method']
+	batch_size = checkpoint['batch_size']
 
-		if 'complex' in factorizer_name.lower():
-			model = ComplEx(metadata['data_shape'], metadata['rank'], metadata['init'])
-		else:
-			print('Error in Model choices: Please choose CP or ComplEx')
-			return None, None, None
+	KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, batch_size)
+	KBC_optimizer.model.load_state_dict(checkpoint['model_state_dict'])
+	KBC_optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+	epoch = checkpoint['epoch']
+	loss = checkpoint['loss']
 
-		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-		model.to(device)
-
-		regularizer = checkpoint['regularizer']
-		optim_method = checkpoint['optim_method']
-		batch_size = checkpoint['batch_size']
-
-		KBC_optimizer = KBCOptimizer(model, regularizer, optim_method, batch_size)
-		KBC_optimizer.model.load_state_dict(checkpoint['model_state_dict'])
-		KBC_optimizer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-		epoch = checkpoint['epoch']
-		loss = checkpoint['loss']
-
-		print(KBC_optimizer.model.eval())
-
-
-	except RuntimeError as e:
-		print('Loading Failed with Error {}'.format(e))
+	print(KBC_optimizer.model.eval())
 
 	return KBC_optimizer, epoch, loss
 
@@ -207,7 +201,7 @@ if __name__ == "__main__":
 		'path'
 	)
 
-	models = ['CP', 'ComplEx']
+	models = ['CP', 'ComplEx', 'DistMult']
 	parser.add_argument(
 		'--model', choices=models,
 		help="Model in {}".format(models)
@@ -281,6 +275,7 @@ if __name__ == "__main__":
 		model = {
 			'CP': lambda: CP(dataset.get_shape(), args.rank, args.init),
 			'ComplEx': lambda: ComplEx(dataset.get_shape(), args.rank, args.init),
+			'DistMult': lambda: DistMult(dataset.get_shape(), args.rank, args.init)
 		}[args.model]()
 
 		regularizer = {
