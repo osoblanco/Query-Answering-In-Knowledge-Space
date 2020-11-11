@@ -34,7 +34,11 @@ def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', quer
 	metrics = {}
 	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
+
+
 	env.name = kbc_path.split('/')[-1].split('-')[0]
+	if '237' in kbc_path:
+		env.name = kbc_path.split('/')[-1].split('-')[0] + '-' +kbc_path.split('/')[-1].split('-')[1]
 
 	if '1' in env.chain_instructions[-1][-1]:
 		part1, part2 = env.parts
