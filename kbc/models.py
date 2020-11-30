@@ -434,12 +434,16 @@ class KBCModel(nn.Module, ABC):
 		scores = self._optimize_variables(scoring_fn, params, optimizer, lr, max_steps)
 		return scores
 
+	def min_max_rescale(self,x):
+		return (x-torch.min(x))/(torch.max(x)- torch.min(x))
+
 	def get_best_candidates(self,
 			rel: Tensor,
 			arg1: Optional[Tensor],
 			arg2: Optional[Tensor],
 			candidates: int = 5,
-			last_step = False) -> Tuple[Tensor, Tensor]:
+			last_step = False,
+			scores_normalize = 'min_max') -> Tuple[Tensor, Tensor]:
 
 		z_scores, z_emb, z_indices = None, None , None
 
@@ -459,11 +463,21 @@ class KBCModel(nn.Module, ABC):
 			k = min(candidates, scores.shape[1])
 			z_scores, z_indices = torch.topk(scores, k=k, dim=1)
 			# [B, K, E]
+			if 'min_max' in scores_normalize:
+				z_scores = self.min_max_rescale(z_scores)
+			elif 'sigmoid' in scores_normalize:
+				z_scores = torch.sigmoid(z_scores)
+
 			z_emb = self.entity_embeddings(z_indices)
 			assert z_emb.shape[0] == batch_size
 			assert z_emb.shape[2] == embedding_size
 		else:
 			z_scores = scores
+
+			if 'min_max' in scores_normalize:
+				z_scores = self.min_max_rescale(z_scores)
+			elif 'sigmoid' in scores_normalize:
+				z_scores = torch.sigmoid(z_scores)
 
 			z_indices = torch.arange(z_scores.shape[1]).view(1,-1).repeat(z_scores.shape[0],1).to(Device)
 			z_emb = self.entity_embeddings(z_indices)
@@ -482,10 +496,7 @@ class KBCModel(nn.Module, ABC):
 		elif 'prod' in t_conorm:
 			return (tens_1+tens_2) - (tens_1 * tens_2)
 
-	def min_max_rescale(self, x):
-		return (x-torch.min(x))/(torch.max(x) - torch.min(x))
-
-	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', batch_size = 1, scores_normalize = 0):
+	def query_answering_BF(self, env: DynKBCSingleton, candidates: int = 5, t_norm: str = 'min', batch_size = 1, scores_normalize = 'min_max'):
 
 		res = None
 
@@ -532,8 +543,6 @@ class KBCModel(nn.Module, ABC):
 						last_hop = False
 						for hop_num, ind in enumerate(indices):
 
-							# print("HOP")
-							# print(candidate_cache.keys())
 							last_step =  (inst_ind == len(chain_instructions)-1) and last_hop
 
 							lhs,rel,rhs = chains[ind]
@@ -543,7 +552,6 @@ class KBCModel(nn.Module, ABC):
 							if lhs is not None:
 								lhs = lhs[batch[0]:batch[1]]
 							else:
-								# print("MTA BRAT")
 								batch_scores, lhs_3d = candidate_cache[f"lhs_{ind}"]
 								lhs = lhs_3d.view(-1, embedding_size)
 
@@ -553,12 +561,11 @@ class KBCModel(nn.Module, ABC):
 
 							if f"rhs_{ind}" not in candidate_cache:
 
-								# print("STTEEE MTA")
-								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step)
+								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step, scores_normalize)
 
 								# [Num_queries * Candidates^K]
 								z_scores_1d = z_scores.view(-1)
-								if 'disj' in env.graph_type or scores_normalize:
+								if 'disj' in env.graph_type and scores_normalize == 'default':
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
 								# B * S
@@ -632,7 +639,7 @@ class KBCModel(nn.Module, ABC):
 								z_scores = self.score_fixed(rel, lhs, rhs, candidates)
 
 								z_scores_1d = z_scores.view(-1)
-								if 'disj' in env.graph_type or scores_normalize:
+								if 'disj' in env.graph_type and scores_normalize == 'default':
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
 								batch_scores = z_scores_1d if batch_scores is None else objective(z_scores_1d, batch_scores, t_norm)
@@ -640,12 +647,12 @@ class KBCModel(nn.Module, ABC):
 								continue
 
 							if f"rhs_{ind}" not in candidate_cache or last_step:
-								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step)
+								z_scores, rhs_3d = self.get_best_candidates(rel, lhs, None, candidates, last_step, scores_normalize)
 
 								# [B * Candidates^K] or [B, S-1, N]
 								z_scores_1d = z_scores.view(-1)
 								# print(z_scores_1d)
-								if 'disj' in env.graph_type or scores_normalize:
+								if 'disj' in env.graph_type and scores_normalize == 'default':
 									z_scores_1d = torch.sigmoid(z_scores_1d)
 
 								if not last_step:

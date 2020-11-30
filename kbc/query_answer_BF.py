@@ -8,9 +8,10 @@ from kbc.utils import preload_env
 from kbc.metrics import evaluation
 
 
-def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min', candidates=3, scores_normalize=0):
+def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min', candidates=3, scores_normalize='min_max'):
 	# for query in ['1_2', '1_3', '2_2', '2_3', '4_3', '3_3', '2_2_disj', '4_3_disj']:
-	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+	# experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
+	experiments = ['3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
 	# experiments = ['3_3', '4_3']
@@ -29,7 +30,7 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	return
 
 
-def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3, scores_normalize = 0):
+def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3, scores_normalize = 'min_max'):
 	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 
@@ -64,7 +65,7 @@ if __name__ == "__main__":
 	QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
 
 	t_norms = ['min', 'product']
-	normalize_choices = ['0', '1']
+	normalize_choices = ['default', 'min_max', 'sigmoid']
 
 	parser = argparse.ArgumentParser(
 	description="Query Answering BF namespace"
@@ -91,7 +92,7 @@ if __name__ == "__main__":
 	)
 
 	parser.add_argument(
-	'--scores_normalize', choices=normalize_choices, default='0',
+	'--scores_normalize', choices=normalize_choices, default='min_max',
 	help="A normalization flag for atomic scores".format(chain_types)
 	)
 
@@ -116,4 +117,4 @@ if __name__ == "__main__":
 	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
 	candidates = int(args.candidates)
 	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, t_norm=args.t_norm, candidates=candidates, \
-																				scores_normalize = int(args.scores_normalize))
+																				scores_normalize = args.scores_normalize)
