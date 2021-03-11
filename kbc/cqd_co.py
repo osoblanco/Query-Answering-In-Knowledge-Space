@@ -17,9 +17,9 @@ def score_queries(args):
 
     script_path = osp.dirname(Path(__file__).absolute())
 
-    data_hard_path = osp.join(script_path, 'data', args.dataset,
+    data_hard_path = osp.join(script_path, '../data', args.dataset,
                               f'{args.dataset}_{mode}_hard.pkl')
-    data_complete_path = osp.join(script_path, 'data', args.dataset,
+    data_complete_path = osp.join(script_path, '../data', args.dataset,
                                   f'{args.dataset}_{mode}_complete.pkl')
 
     data_hard = pickle.load(open(data_hard_path, 'rb'))

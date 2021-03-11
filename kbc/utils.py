@@ -8,7 +8,6 @@ import subprocess
 
 
 from typing import List, Tuple
-import matplotlib.pyplot as plt
 
 from collections import OrderedDict
 import xml.etree.ElementTree
@@ -769,57 +768,3 @@ def preload_env(kbc_path, dataset, graph_type, mode="hard"):
         return env
 
     return env
-
-
-def plot_regularization_results(results_path, dataset):
-    query2hits = defaultdict(lambda: ([], []))
-
-    if dataset == 'FB15k-237':
-        type_index = 8
-        reg_index = 9
-        val_index = 4
-    else:
-        type_index = 7
-        reg_index = 8
-        val_index = 3
-
-    files_found = 0
-
-    for f in os.listdir(results_path):
-        if f.startswith(dataset + '-model'):
-            files_found += 1
-
-            values = f.split('-')
-            query_type = values[type_index]
-            reg = float(values[reg_index])
-            rank = values[val_index]
-            query2hits[query_type][0].append(reg)
-            results = json.load(open(osp.join(results_path, f)))
-            query2hits[query_type][1].append(results['HITS@3m_new'])
-
-    if files_found > 0:
-        print(f'Showing results for {dataset}')
-        print(f'{"Query type":<12}{"Best coefficient":<20}')
-        query2hits = {query_type: zip(*sorted(zip(reg_values, hits))) for query_type, (reg_values, hits) in query2hits.items()}
-
-        for query_type, (reg_values, hits) in query2hits.items():
-            max_index = np.argmax(np.array(hits))
-            best_coeff = reg_values[max_index]
-
-            print(f'{query_type:<12}{best_coeff:<20.1e}')
-
-            plt.plot(reg_values, hits, '.-', label=f'Rank={rank}')
-            plt.xscale('log')
-            plt.xlabel('Regularization coefficient')
-            plt.ylabel('H@3')
-            plt.title(f'Results on {query_type} queries - {dataset}')
-            plt.legend()
-            plt.show()
-    else:
-        print('Log files not found, terminating')
-
-
-if __name__ == '__main__':
-    plot_regularization_results('results', 'FB15k')
-    plot_regularization_results('results', 'FB15k-237')
-    plot_regularization_results('results', 'NELL')
