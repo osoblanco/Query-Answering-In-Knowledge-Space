@@ -33,60 +33,54 @@ def avg_both(mrrs: Dict[str, float], hits: Dict[str, torch.FloatTensor]):
 	return {'MRR': m, 'hits@[1,3,10]': h}
 
 
-
 def train_kbc(KBC_optimizer, dataset, args):
+	examples = torch.from_numpy(dataset.get_train().astype('int64'))
 
-	try:
-		examples = torch.from_numpy(dataset.get_train().astype('int64'))
+	max_epochs = args.max_epochs
+	model_save_schedule = args.model_save_schedule
 
-		max_epochs = args.max_epochs
-		model_save_schedule = args.model_save_schedule
+	cur_loss = 0
+	curve = {'train': [], 'valid': [], 'test': []}
 
-		cur_loss = 0
-		curve = {'train': [], 'valid': [], 'test': []}
+	timestamp = str(int(time.time()))
+	for epoch in range(1, max_epochs + 1):
 
-		timestamp = str(int(time.time()))
-		for epoch in range(1,max_epochs+1):
+		cur_loss = KBC_optimizer.train_epoch(examples)
 
-			cur_loss = KBC_optimizer.train_epoch(examples)
+		if (epoch + 1) % args.valid == 0:
+			valid, test, train = [
+				avg_both(*dataset.eval(KBC_optimizer.model, split, -1 if split != 'train' else 50000))
+				for split in ['valid', 'test', 'train']
+			]
 
-			if (epoch + 1) % args.valid == 0:
-				valid, test, train = [
-					avg_both(*dataset.eval(KBC_optimizer.model, split, -1 if split != 'train' else 50000))
-					for split in ['valid', 'test', 'train']
-				]
+			curve['valid'].append(valid)
+			curve['test'].append(test)
+			curve['train'].append(train)
 
-				curve['valid'].append(valid)
-				curve['test'].append(test)
-				curve['train'].append(train)
+			print("\t TRAIN: ", train)
+			print("\t VALID : ", valid)
 
-				print("\t TRAIN: ", train)
-				print("\t VALID : ", valid)
+		if epoch % model_save_schedule == 0 and epoch > 0:
+			if not os.path.isdir('models'):
+				os.mkdir('models')
 
-			if epoch%model_save_schedule == 0 and epoch > 0:
-				if not os.path.isdir('models'):
-					os.mkdir('models')
+			model_dir = os.path.join(os.getcwd(),'models')
+			torch.save({'epoch': epoch,
+						'model_name': args.dataset,
+						'factorizer_name': args.model,
+						'regularizer': KBC_optimizer.regularizer,
+						'optim_method': KBC_optimizer.optimizer,
+						'batch_size': KBC_optimizer.batch_size,
+						'model_state_dict': KBC_optimizer.model.state_dict(),
+						'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
+						'loss': cur_loss},
+					    os.path.join(model_dir, '{}-{}-model-rank-{}-epoch-{}-{}.pt'.format(args.dataset, args.model, args.rank, epoch, timestamp)))
 
-				model_dir = os.path.join(os.getcwd(),'models')
-				torch.save({'epoch': epoch,
-							'model_name':args.dataset,
-							'factorizer_name':args.model,
-							'regularizer':KBC_optimizer.regularizer,
-							'optim_method':KBC_optimizer.optimizer ,
-							'batch_size':KBC_optimizer.batch_size,
-							'model_state_dict': KBC_optimizer.model.state_dict(),
-							'optimizer_state_dict': KBC_optimizer.optimizer.state_dict(),
-							'loss': cur_loss},
-							 os.path.join(model_dir, '{}-{}-model-rank-{}-epoch-{}-{}.pt'.format(args.dataset, args.model, args.rank, epoch, timestamp)))
+			with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset, timestamp)), 'w') as json_file:
+				json.dump(vars(args), json_file)
 
-				with open(os.path.join(model_dir,'{}-metadata-{}.json'.format(args.dataset,timestamp)), 'w') as json_file:
-					json.dump(vars(args), json_file)
-
-		results = dataset.eval(model, 'test', -1)
-		print("\n\nTEST : ", avg_both(*results))
-
-	except RuntimeError as e:
-		print("Training was interupted with error {}".format(str(e)))
+	results = dataset.eval(model, 'test', -1)
+	print("\n\nTEST : ", avg_both(*results))
 
 	return curve, results
 
@@ -203,7 +197,7 @@ if __name__ == "__main__":
 
 	models = ['CP', 'ComplEx', 'DistMult']
 	parser.add_argument(
-		'--model', choices=models,
+		'--model', choices=models, default='ComplEx',
 		help="Model in {}".format(models)
 	)
 
