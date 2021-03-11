@@ -1,5 +1,2 @@
+torch==1.6
 tqdm
-torch
-numpy
-scikit-learn
-scipy
