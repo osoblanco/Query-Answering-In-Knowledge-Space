@@ -6,7 +6,7 @@ models
 **/*cpython*
 kbc/lib/bindings.cpp
 dist
-kbc/data
+data
 **/.nfs*
 ./models/*
 ./FB237

@@ -1,117 +1,82 @@
-# Query Answering In Knowledge Space
+# Complex Query Decomposition
 
-This Code is the implementation of "Query Answering with Knowledge Graph
-Embeddings via Continuous Optimisation" inspired from ["Querying Complex Networks in Vector Space"](https://github.com/williamleif/graphqembed)
+This repository contains the official implementation for our ICLR 2021 paper, **Complex Query Answering with Neural Link Predictors**:
 
-The implementation builds upon and expands the code-base from [Canonical Tensor Decomposition for Knowledge Base Completion](https://arxiv.org/abs/1806.07297) from  FAIR.
-
-____
-
-## Setup
-
-The Setup process is similar the the original [repo](https://github.com/facebookresearch/kbc) as the process for installation has been altered sloghtly to accomodate fror the expanded functional
-
-### 1) Create an environemnt and install the package and the requirements
-
-```
-conda create --name kbc_env python=3.7
-source activate kbc_env
-conda install --file requirements.txt -c pytorch
-pip install requirements.txt
-python setup.py install
+```bibtex
+@inproceedings{
+arakelyan2021complex,
+title={Complex Query Answering with Neural Link Predictors},
+author={Erik Arakelyan and Daniel Daza and Pasquale Minervini and Michael Cochez},
+booktitle={International Conference on Learning Representations},
+year={2021},
+url={https://openreview.net/forum?id=Mos9F9kDwkz}
+}
 ```
 
-Here conda environments can be replaced manual <i>virtualenv</i> environments.
+In this work we present CQD, a method that reuses a pretrained link predictor to answer complex queries, by scoring atom predicates independently and aggregating the scores via t-norms and t-conorms.
 
-### 2a) Download the data used in original KBC
+Our code is based on the implementation of ComplEx-N3 available [here](https://github.com/facebookresearch/kbc).
 
-```
-chmod +x download_data.sh
-./download_data.sh
-```
+Please follow the instructions next to reproduce the results in our experiments.
 
-### 2b) Download the Bio Data used as the benchmark for "Querying Complex Networks in Vector Space"
+### 1. Install the requirements
 
-The Bio data can be downloaded [here](https://snap.stanford.edu/nqe/bio_data.zip)
-
-Unzip the data under the name "Bio" in the folder "/Query-Answering-In-Knowledge-Space/kbc/src_data"
-
-### 2c) Convert and Process the Bio data to appropriate form.
+We recommend creating a new environment:
 
 ```
-python kbc/bio_data_process.py
+conda create --name cqd python=3.8 && conda activate cqd
+pip install -r requirements.txt
 ```
 
-### 3) Process all of the datasets to a Knowledge Graph format.
+### 2. Download the data
 
-```
-python kbc/process_datasets.py
-```
+We use 3 knowledge graphs: FB15k, FB15k-237, and NELL. From the root of the repository, download and extract the files to obtain the folder `data`, containing the sets of triples and queries for each graph.
 
-## Training
-
-You can train a KBC model on any one of the datasets processed in the previous step
-
-Example:
-```
-python kbc/learn.py --dataset Bio --model ComplEx --max_epochs 30 \
---model_save_schedule 10 --valid 10 --reg 5e-2 --batch_size 1024 --rank 128
-
+```sh
+wget # TODO
+tar # TODO
 ```
 
-All of the input parameters and options can be found in both the code documentation or simply by using `-help` in the command line.
+### 2. Train a link predictor
 
-## Optimization and Benchmarks
+To obtain entity and relation embeddings, we use ComplEx. Use the next commands to train the embeddings for each dataset.
 
-### Sampling chains
+#### FB15k
 
-To Sample longer chains of different types as described in the paper(TODO: Add link), use
-
-Example:
-```
-python kbc/chain_dataset.py --dataset Bio --threshold 5000
+```sh
+python -m kbc.learn data/FB15k --rank 1000 --reg 0.01 --max_epochs 100  --batch_size 100
 ```
 
-### Optimizing
+#### FB15k-237
 
-Find the target vectors and answer the queries as described in the paper(TODO: Add link). (Reproduce the benchmarks this way)
-
-```
-python kbc/query_space_optimize.py --model_path models/Bio-model-epoch-30-1566308599.pt \
---dataset Bio --dataset_mode test --similarity_metric l2 --chain_type 1_3
-
-
+```sh
+python -m kbc.learn data/FB15k-237 --rank 1000 --reg 0.05 --max_epochs 100  --batch_size 1000
 ```
 
-### Results
+#### NELL
 
-|         |    Bio   |                             Bio                            |   |                            WN18                            |
-|:-------:|:--------:|:----------------------------------------------------------:|:-:|:----------------------------------------------------------:|
-|         |   GQE    | Continuous Optimization with KG embeddings. (Our solution) |   | Continuous Optimization with KG embeddings. (Our solution) |
-|  Type-1 |   0.99   |                            0.99                            |   |                          0.987742                          |
-| Type1-2 | 0.931927 |                           0.95737                          |   |                          0.996718                          |
-| Type2-2 | 0.925571 |                           0.96639                          |   |                          0.996269                          |
-| Type1-3 |  0.89373 |                           0.96461                          |   |                          0.9985055                         |
-| Type2-3 | 0.881848 |                           0.93691                          |   |                          0.9907173                         |
-| Type3-3 |  0.87890 |                           0.93952                          |   |                         0.99603959                         |
-| Type4-3 | 0.886478 |                           0.85132                          |   |                         0.99331019                         |
+```sh
+python -m kbc.learn data/NELL --rank 1000 --reg 0.05 --max_epochs 100  --batch_size 1000
+```
 
+Once training is done, the models will be saved in the `models` directory.
 
+### 3. Answering queries with CQD
 
-|          | Hits@1 | Hits@1 |
-|:--------:|--------|--------|
-|          |   Bio  |  WN18  |
-|  Type 1  |  0.561 | 0.9774 |
-| Type 1-2 |  0.704 | 0.8642 |
-| Type 2-2 |  0.599 | 0.9336 |
-| Type 1-3 |  0.629 | 0.9312 |
-| Type 2-3 |  0.599 | 0.8868 |
-| Type 3-3 |  0.582 | 0.8112 |
-| Type 4-3 |  0.503 | 0.8176 |
+CQD can answer complex queries via continuous (CQD-CO) or combinatorial optimisation (CQD-Beam).
 
+#### CQD-CO
 
-___
+Use the `kbc.cqd_co` script to answer queries, providing the path to the dataset, and the saved link predictor trained in the previous step. For example,
 
-## TODO
+```sh
+python -m kbc.cqd_co data/FB15k --model_path models/[model_filename].pt --chain_type 1_2
+```
 
-- [ ] Refactor the code into more general functions for different chains types in ```models.py``` and ```query_space_optimize.py```
+#### CQD-Beam
+
+For this variant, use `kbc.cqd_beam` similarly as in CQD-CO.
+
+```sh
+python -m kbc.cqd_beam --model_path models/[model_filename].pt
+```
