@@ -1,3 +1,4 @@
+import os.path as osp
 import argparse
 import pickle
 import json
@@ -9,7 +10,6 @@ from kbc.metrics import evaluation
 
 
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min', candidates=3, scores_normalize=0):
-	# for query in ['1_2', '1_3', '2_2', '2_3', '4_3', '3_3', '2_2_disj', '4_3_disj']:
 	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
 	# experiments = ['2_2_disj', '4_3_disj']
 	# experiments = ['4_3_disj']
@@ -67,8 +67,10 @@ if __name__ == "__main__":
 	normalize_choices = ['0', '1']
 
 	parser = argparse.ArgumentParser(
-	description="Query Answering BF namespace"
+	description="Complex Query Decomposition - Beam"
 	)
+
+	parser.add_argument('path', help='Path to directory containing queries')
 
 	parser.add_argument(
 	'--model_path',
@@ -81,7 +83,7 @@ if __name__ == "__main__":
 	)
 
 	parser.add_argument(
-	'--dataset_mode', choices=dataset_modes, default='train',
+	'--mode', choices=dataset_modes, default='test',
 	help="Dataset validation mode in {}".format(dataset_modes)
 	)
 
@@ -107,13 +109,16 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
-	data_hard_path = args.dataset+'_hard.pkl'
-	data_complete_path = args.dataset+'_complete.pkl'
+	dataset = osp.basename(args.path)
+	mode = args.mode
 
-	data_hard = pickle.load(open(data_hard_path,'rb'))
-	data_complete = pickle.load(open(data_complete_path,'rb'))
+	data_hard_path = osp.join(args.path, f'{dataset}_{mode}_hard.pkl')
+	data_complete_path = osp.join(args.path, f'{dataset}_{mode}_complete.pkl')
 
-	# query_answer_BF(args.model_path, data_hard, data_complete, args.similarity_metric, args.t_norm, args.chain_type)
+	data_hard = pickle.load(open(data_hard_path, 'rb'))
+	data_complete = pickle.load(open(data_complete_path, 'rb'))
+
 	candidates = int(args.candidates)
-	run_all_experiments(args.model_path, data_hard, data_complete, args.dataset, t_norm=args.t_norm, candidates=candidates, \
-																				scores_normalize = int(args.scores_normalize))
+	run_all_experiments(args.model_path, data_hard, data_complete,
+						dataset, t_norm=args.t_norm, candidates=candidates,
+						scores_normalize=int(args.scores_normalize))
