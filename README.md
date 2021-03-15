@@ -1,6 +1,6 @@
 # Complex Query Decomposition
 
-This repository contains the official implementation for our ICLR 2021 paper, **Complex Query Answering with Neural Link Predictors**:
+This repository contains the official implementation for our ICLR 2021 paper, [**Complex Query Answering with Neural Link Predictors**](https://openreview.net/forum?id=Mos9F9kDwkz):
 
 ```bibtex
 @inproceedings{
