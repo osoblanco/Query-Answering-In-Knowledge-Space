@@ -1,6 +1,8 @@
+from tqdm import tqdm
 import os.path as osp
 import argparse
 import pickle
+import torch
 import json
 
 from kbc.utils import QuerDAG
@@ -8,43 +10,56 @@ from kbc.utils import preload_env
 
 from kbc.metrics import evaluation
 
-
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min', candidates=3, scores_normalize=0):
 	experiments = [t.value for t in QuerDAG]
-	experiments.remove(QuerDAG.TYPE1_1.value)
 
 	print(kbc_path, dataset_name, t_norm, candidates)
-
 	path_entries = kbc_path.split('-')
 	rank = path_entries[path_entries.index('rank') + 1] if 'rank' in path_entries else 'None'
 
 	for exp in experiments:
+
 		metrics = query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm, exp, candidates, scores_normalize)
 
 		with open(f'topk_d={dataset_name}_t={t_norm}_e={exp}_rank={rank}_k={candidates}_sn={scores_normalize}.json', 'w') as fp:
 			json.dump(metrics, fp)
+
 	return
 
+def query_link_predictor(env):
+	chains = env.chains
+	s_emb = chains[0][0]
+	p_emb = chains[0][1]
+
+	scores_lst = []
+	nb_queries = s_emb.shape[0]
+	for i in tqdm(range(nb_queries)):
+		with torch.no_grad():
+		    batch_s_emb = s_emb[i, :].view(1, -1)
+		    batch_p_emb = p_emb[i, :].view(1, -1)
+		    batch_chains = [(batch_s_emb, batch_p_emb, None)]
+		    batch_scores = env.kbc.model.link_prediction(batch_chains)
+		    scores_lst += [batch_scores]
+
+	scores = torch.cat(scores_lst, 0)
+
+	return scores
 
 def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type=QuerDAG.TYPE1_2, candidates=3, scores_normalize = 0):
 	env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
 	env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
 
-	if '1' in env.chain_instructions[-1][-1]:
-		part1, part2 = env.parts
-	elif '2' in env.chain_instructions[-1][-1]:
-		part1, part2, part3 = env.parts
-
 	kbc = env.kbc
 
-	scores = kbc.model.query_answering_BF(env, candidates, t_norm=t_norm , batch_size=1, scores_normalize = scores_normalize)
-	print(scores.shape)
+	if query_type == QuerDAG.TYPE1_1.value:
+		scores = query_link_predictor(env)
+	else:
+		scores = kbc.model.query_answering_BF(env, candidates, t_norm=t_norm , batch_size=1, scores_normalize = scores_normalize)
 
 	queries = env.keys_hard
 	test_ans_hard = env.target_ids_hard
 	test_ans = 	env.target_ids_complete
-	# scores = torch.randint(1,1000, (len(queries),kbc.model.sizes[0]),dtype = torch.float).cuda()
-	#
+
 	metrics = evaluation(scores, queries, test_ans, test_ans_hard)
 	print(metrics)
 
