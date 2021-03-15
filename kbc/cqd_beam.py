@@ -11,7 +11,7 @@ from kbc.metrics import evaluation
 
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min', candidates=3, scores_normalize=0):
 	experiments = [t.value for t in QuerDAG]
-	experiments.remove(QuerDAG.TYPE1_1)
+	experiments.remove(QuerDAG.TYPE1_1.value)
 
 	print(kbc_path, dataset_name, t_norm, candidates)
 
@@ -27,8 +27,8 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 
 
 def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type=QuerDAG.TYPE1_2, candidates=3, scores_normalize = 0):
-	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
-	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
+	env = preload_env(kbc_path, dataset_hard, query_type, mode='hard')
+	env = preload_env(kbc_path, dataset_complete, query_type, mode='complete')
 
 	if '1' in env.chain_instructions[-1][-1]:
 		part1, part2 = env.parts
@@ -57,8 +57,9 @@ if __name__ == "__main__":
 	datasets = big_datasets
 	dataset_modes = ['valid', 'test', 'train']
 
-	chain_types = [QuerDAG.TYPE1_1.value,QuerDAG.TYPE1_2.value,QuerDAG.TYPE2_2.value,QuerDAG.TYPE1_3.value, \
-	QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,'All','e']
+	chain_types = [QuerDAG.TYPE1_1.value, QuerDAG.TYPE1_2.value, QuerDAG.TYPE2_2.value, QuerDAG.TYPE1_3.value,
+				   QuerDAG.TYPE1_3_joint.value, QuerDAG.TYPE2_3.value, QuerDAG.TYPE3_3.value, QuerDAG.TYPE4_3.value,
+				   'All', 'e']
 
 	t_norms = ['min', 'product']
 	normalize_choices = ['0', '1']
@@ -82,11 +83,6 @@ if __name__ == "__main__":
 	parser.add_argument(
 	'--mode', choices=dataset_modes, default='test',
 	help="Dataset validation mode in {}".format(dataset_modes)
-	)
-
-	parser.add_argument(
-	'--chain_type', choices=chain_types, default=QuerDAG.TYPE1_1.value,
-	help="Chain type experimenting for ".format(chain_types)
 	)
 
 	parser.add_argument(
