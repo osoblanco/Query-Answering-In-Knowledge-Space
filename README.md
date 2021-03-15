@@ -76,18 +76,50 @@ Once training is done, the models will be saved in the `models` directory.
 
 CQD can answer complex queries via continuous (CQD-CO) or combinatorial optimisation (CQD-Beam).
 
+#### CQD-Beam
+
+Use the `kbc.cqd_beam` script to answer queries, providing the path to the dataset, and the saved link predictor trained in the previous step. For example,
+
+```sh
+python -m kbc.cqd_beam --model_path models/[model_filename].pt
+```
+
+Example:
+
+```shell
+PYTHONPATH=. python3 kbc/cqd_beam.py \
+  --model_path models/FB15k-model-rank-1000-epoch-100-*.pt \
+  --dataset FB15K --mode test --t_norm product --candidates 64 \
+  --scores_normalize 0 data/FB15k
+
+models/FB15k-model-rank-1000-epoch-100-1602520745.pt FB15k product 64
+ComplEx(
+  (embeddings): ModuleList(
+    (0): Embedding(14951, 2000, sparse=True)
+    (1): Embedding(2690, 2000, sparse=True)
+  )
+)
+
+[..]
+```
+
+This will save a series of JSON fils with results, e.g.
+
+```sh
+cat "topk_d=FB15k_t=product_e=2_2_rank=1000_k=64_sn=0.json"
+{
+  "MRRm_new": 0.7542805715523118,
+  "MRm_new": 50.71081983144581,
+  "HITS@1m_new": 0.6896709378392843,
+  "HITS@3m_new": 0.7955001359095913,
+  "HITS@10m_new": 0.8676865172456019
+}
+```
+
 #### CQD-CO
 
 Use the `kbc.cqd_co` script to answer queries, providing the path to the dataset, and the saved link predictor trained in the previous step. For example,
 
 ```sh
 python -m kbc.cqd_co data/FB15k --model_path models/[model_filename].pt --chain_type 1_2
-```
-
-#### CQD-Beam
-
-For this variant, use `kbc.cqd_beam` similarly as in CQD-CO.
-
-```sh
-python -m kbc.cqd_beam --model_path models/[model_filename].pt
 ```
