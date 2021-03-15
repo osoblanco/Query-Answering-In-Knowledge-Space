@@ -10,11 +10,8 @@ from kbc.metrics import evaluation
 
 
 def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, t_norm='min', candidates=3, scores_normalize=0):
-	experiments = ['1_2', '1_3', '2_2', '2_3', '3_3', '4_3', '2_2_disj', '4_3_disj']
-	# experiments = ['2_2_disj', '4_3_disj']
-	# experiments = ['4_3_disj']
-	# experiments = ['3_3', '4_3']
-	# experiments = ['2_3']
+	experiments = [t.value for t in QuerDAG]
+	experiments.remove(QuerDAG.TYPE1_1)
 
 	print(kbc_path, dataset_name, t_norm, candidates)
 
@@ -29,7 +26,7 @@ def run_all_experiments(kbc_path, dataset_hard, dataset_complete, dataset_name, 
 	return
 
 
-def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type='1_2', candidates=3, scores_normalize = 0):
+def query_answer_BF(kbc_path, dataset_hard, dataset_complete, t_norm='min', query_type=QuerDAG.TYPE1_2, candidates=3, scores_normalize = 0):
 	env = preload_env(kbc_path, dataset_hard, query_type, mode = 'hard')
 	env = preload_env(kbc_path, dataset_complete, query_type, mode = 'complete')
 

@@ -33,8 +33,8 @@ pip install -r requirements.txt
 We use 3 knowledge graphs: FB15k, FB15k-237, and NELL. From the root of the repository, download and extract the files to obtain the folder `data`, containing the sets of triples and queries for each graph.
 
 ```sh
-wget # TODO
-tar # TODO
+wget http://data.neuralnoise.com/cqd-data.tgz
+tar xvf cqd-data.tgz
 ```
 
 ### 2. Train a link predictor
