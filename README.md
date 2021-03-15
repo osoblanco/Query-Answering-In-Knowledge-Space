@@ -30,14 +30,25 @@ pip install -r requirements.txt
 
 ### 2. Download the data
 
-We use 3 knowledge graphs: FB15k, FB15k-237, and NELL. From the root of the repository, download and extract the files to obtain the folder `data`, containing the sets of triples and queries for each graph.
+We use 3 knowledge graphs: FB15k, FB15k-237, and NELL.
+From the root of the repository, download and extract the files to obtain the folder `data`, containing the sets of triples and queries for each graph.
 
 ```sh
 wget http://data.neuralnoise.com/cqd-data.tgz
 tar xvf cqd-data.tgz
 ```
 
-### 2. Train a link predictor
+### 3. Download the models
+
+Then you need neural link prediction models -- one for each of the datasets.
+Our pre-trained neural link prediction models are available here:
+
+```sh
+wget http://data.neuralnoise.com/cqd-models.tgz
+tar xvf cqd-data.tgz
+```
+
+### 3. Alternative -- Train your own models
 
 To obtain entity and relation embeddings, we use ComplEx. Use the next commands to train the embeddings for each dataset.
 
@@ -61,7 +72,7 @@ python -m kbc.learn data/NELL --rank 1000 --reg 0.05 --max_epochs 100  --batch_s
 
 Once training is done, the models will be saved in the `models` directory.
 
-### 3. Answering queries with CQD
+### 4. Answering queries with CQD
 
 CQD can answer complex queries via continuous (CQD-CO) or combinatorial optimisation (CQD-Beam).
 
